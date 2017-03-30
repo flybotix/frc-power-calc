@@ -1,7 +1,8 @@
 /.gradle
 /.idea
 /build
-/gradle
 /out
-gradlew
-gradlew.bat
+.classpath
+.project
+.settings/
+/bin/
