@@ -71,12 +71,28 @@ public class SchedulePredictor {
       }
     }
     
+    public int getTotalScore() {
+      return red.mScore + blue.mScore;
+    }
+    
+    public int getWinningScore() {
+      return red.mScore > blue.mScore ? red.mScore : blue.mScore;
+    }
+    
+    public int getMargin() {
+      return Math.abs(red.mScore - blue.mScore);
+    }
+    
     public String toString() {
       return num + ": RED" + red.toString() + "\tBLUE" + blue.toString();
     }
   }
+  
+  static int NUM_KPA_RP = 0;
   static int NUM_ROTOR_RP = 0;
   static int NUM_TIES = 0;
+  static double GEAR_MULTIPLIER = 1.1;
+  static double FUEL_MULTIPLIER = 1.4;
   
   private class Alliance {
     List<Team> teams = new ArrayList<>();
@@ -100,7 +116,9 @@ public class SchedulePredictor {
         // Individual linear values are already determined in OPR
         case autoFuelPoints: 
         case teleopFuelPoints: 
-          value += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get();
+          // We assume we've (mostly) filtered out non-fuel teams here.
+          // Seems to be inline with what 1262, 346, & 836 did in their last few matches
+          value += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
           break;
           
         // Alliance-cooperative static scores
@@ -109,17 +127,17 @@ public class SchedulePredictor {
         case rotor2Engaged:
         case rotor3Engaged:
           // Max probability or value of alliance
-          double p_rotor = teams.stream()
-            .map(t -> t.stats.get(stat) / (stat.getStaticValue()/3)) // divide OPR by max to get probability
-            .reduce(Double::max).get(); // max engagement for the alliance
-          value += Math.random() > p_rotor ? 0 : stat.getStaticValue();
+          double p_Arotor = teams.stream()
+            .map(t -> t.stats.get(stat) / stat.getStaticValue()* GEAR_MULTIPLIER) // divide OPR by max to get probability
+            .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
+          value += Math.random() > p_Arotor ? 0 : stat.getStaticValue();
           break;
           
         case teleopTakeoffPoints:
           value += teams.stream()
             .map(t -> t.stats.get(stat) / stat.getStaticValue()) // OPR Value - calculate individual probability
             .map(p_takeoff -> Math.random() > p_takeoff ? 0 : stat.getStaticValue()) // Calculate value based upon yes/no
-            .reduce(Double::sum).get(); // Sum individual values
+            .reduce(Double::sum).get(); // Max individual values
           break;
           
 
@@ -127,17 +145,15 @@ public class SchedulePredictor {
         // the probability of achievement is based upon opr value, not true/false.
 //        case rotorRankingPointAchieved:
         case rotor4Engaged:
-          // For this we SUM the probabilities to account for each team's leftover contributions
-          // Ok, it really is to slightly bias towards 4-rotor bonuses that will be more prevelant
           Double p_4rotor = teams.stream()
-            .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
-            .reduce(Double::sum).get(); // max engagement for the alliance
+            .map(t -> t.stats.get(stat) / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
+            .reduce(Double::max).get(); // max engagement for the alliance
           mRotorRP = Math.random() > p_4rotor ? 0 : 1;
           value += mRotorRP * stat.getStaticValue();
           
         case kPaRankingPointAchieved:
-          Double kpa = teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get();
-          mFuelRP = kpa > 40d ? 1 : 0;
+          Double kpa = teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
+          mFuelRP = kpa >= 40d ? 1 : 0;
           break;
         default:
         }
@@ -150,16 +166,15 @@ public class SchedulePredictor {
     private void end() {
       String out = "";
       teams.forEach(team -> team.matchpoints += mScore);
-      if(mRotorRP > 0){
-        out += "ROTOR RP ";
-        NUM_ROTOR_RP++;
-      }
       teams.forEach(team -> team.rankpoints += mRotorRP);
-      if(mFuelRP > 0) out += "FUEL RP ";
       teams.forEach(team -> team.rankpoints += mFuelRP);
+      
       if(!out.equalsIgnoreCase("")) {
 //        System.out.println(out + this.toString());
       } 
+      
+      NUM_KPA_RP += mFuelRP;
+      NUM_ROTOR_RP += mRotorRP;
       teams.forEach(team -> team.numMatches++);
     }
     

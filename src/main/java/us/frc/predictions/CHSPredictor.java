@@ -25,9 +25,9 @@ public class CHSPredictor {
   /*
    * NOTE NOTE NOTE NOTE NOTE NOTE NOTE
    * 
-   * SCHEDULE.length must equal the # of teams attending the event,
+   * SCHEDULE.length must be appropriate for the # of teams attending the event,
    * as retrieved by TBA! If this isn't the case, then re-generate
-   * a schedule for N teams.
+   * a schedule for N teams with X matches (for CHCMP it's 58 teams @ 12 matches)
    * 
    * Ideally we'd have pre-calculated schedules for 24 - 100 teams in
    * a file somewhere, but that would take about 10 hours to generate
@@ -37,6 +37,7 @@ public class CHSPredictor {
    * TODO - automate this
    * Run MatchMaker.exe -t 58 -r 12 -b -s -u 3 > Schedule.txt
    *  - Replace '58' with # of teams
+   *  - Replace '12' with # of matches
    *  - Edit "Schedule.txt"
    *  -- Delete all occurances of ' 0'
    *  -- Add in quotes & commas (find/replace in Sublime Text makes this easy)
@@ -205,14 +206,26 @@ public class CHSPredictor {
       rankAverages.put(i, new ArrayList<Integer>());
     }
     
+    double allsimscores = 0;
+    double allsimwinscores = 0;
+    double countFuelTieBreakers = 0;
+    
     // Time to predict!
     for(int i = 0; i < NUM_SCHEDULES_TO_PREDICT; i++) {
 //      System.out.println("Prediction schedule " + i);
       SchedulePredictor sp = new SchedulePredictor(dcmpTeams, allEventStats, SCHEDULE);
       // TODO - JavaFX Match display
-//      for(SchedulePredictor.Match m : sp.getMatches()) {
-//        System.out.println(m);
-//      }
+      for(SchedulePredictor.Match m : sp.getMatches()) {
+        allsimscores += m.getTotalScore();
+        allsimwinscores += m.getWinningScore();
+        if(m.getMargin() < 5 && m.getMargin() > 0) {
+          countFuelTieBreakers++;
+        }
+        
+        if(NUM_SCHEDULES_TO_PREDICT < 5) {
+          System.out.println(m);
+        }
+      }
       
 //      System.out.println("Ranking schedule " + i);
       // Predictions are complete - sort by ranking
@@ -261,15 +274,23 @@ public class CHSPredictor {
       dcmpMax.put(team, Math.min(dcmpTeams.size(), dcmpRanks.get(team)+sig));
     }
     
-    System.out.println("TEAM\t10K-AVG\t80%CONF-LO\t80%CONF-HI");
+    System.out.println("TEAM\t10K-AVG\t80%-LO\t80%-HI");
     for(Integer t : dcmpRanks.keySet()) {
       System.out.println(t + "\t" + nf.format(dcmpRanks.get(t)) + "\t" + nf.format(dcmpMin.get(t)) + "\t" + nf.format(dcmpMax.get(t)));
     }
     
+    System.out.println("Includes gear multiplier of " + SchedulePredictor.GEAR_MULTIPLIER + " due to better pegs @ DCMP");
     System.out.println("# of rotor RP matches predicted: " + 
       nf.format((double)SchedulePredictor.NUM_ROTOR_RP/(double)NUM_SCHEDULES_TO_PREDICT));
+    System.out.println("# of fuel RP matches predicted: " +
+      nf.format((double)SchedulePredictor.NUM_KPA_RP / (double)NUM_SCHEDULES_TO_PREDICT));
     System.out.println("# of Ties predicted: " +
       nf.format((double)SchedulePredictor.NUM_TIES / (double)NUM_SCHEDULES_TO_PREDICT));
+    System.out.println("Average Alliance Score: " + nf.format(allsimscores/(double)SCHEDULE.length/(double)NUM_SCHEDULES_TO_PREDICT/2d));
+    System.out.println("Average Winning Score: " + nf.format(allsimwinscores/(double)SCHEDULE.length/(double)NUM_SCHEDULES_TO_PREDICT));
+    double avgtiebreak = countFuelTieBreakers/(double)NUM_SCHEDULES_TO_PREDICT;
+    System.out.println("# of Matches Where Fuel broke the Tie: " + 
+      nf.format(avgtiebreak) + " (" + nf.format(avgtiebreak/(double)SCHEDULE.length*100d) + "%)");
   }
   
   /**
@@ -284,7 +305,7 @@ public class CHSPredictor {
         // This is important for 2017, because it is the tie-breaker in a lot of matches.
         if(stat == Breakdown2017.autoFuelPoints || stat == Breakdown2017.teleopFuelPoints) {
        // 0.3333 OPR = 1 point each match.  Thus less than 1 point each match: probably didn't do fuel
-          if(v < 0.3d) { 
+          if(v < 0.33d) { 
             v = 0d;
           }
         }
