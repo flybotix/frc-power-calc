@@ -27,9 +27,15 @@ public class CHSPredictor {
   private static final int NUM_SCHEDULES_TO_PREDICT = 10000;
   
   public static void main(String... args) {
-    Map<Integer, TeamStat> allEventStats = new HashMap<>();
+
+    System.out.println("Retrieving teams for " + EVENT_TO_PREDICT);
+    List<Integer> dcmpTeams = TBACalc.api.getEventTeams(EVENT_TO_PREDICT).stream()
+      .map(team -> team.getTeamNumber())
+      .collect(Collectors.toList());
+    String[] schedule = ScheduleGenerator.getScheduleForTeams(dcmpTeams.size(), 12);
     
-    String[] schedule = ScheduleGenerator.getScheduleForTeams(12, 58);
+    
+    Map<Integer, TeamStat> allEventStats = new HashMap<>();
     
     for(String event : PRIOR_EVENTS) {
       System.out.println("Processing " + event);
@@ -56,12 +62,6 @@ public class CHSPredictor {
       .sorted()
       .map(team -> allEventStats.get(team))
       .forEach(System.out::println);
-    
-
-    System.out.println("Retrieving teams for " + EVENT_TO_PREDICT);
-    List<Integer> dcmpTeams = TBACalc.api.getEventTeams(EVENT_TO_PREDICT).stream()
-      .map(team -> team.getTeamNumber())
-      .collect(Collectors.toList());
     
     // Init the rank averages array that stores each sim's rank for a team
     Map<Integer, List<Integer>> rankAverages = new HashMap<>();
