@@ -1,26 +1,28 @@
 package us.frc.predictions;
 
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
-public class CHSPredictor {
-  // TODO - JavaFX Config display
-  private static final String[] PRIOR_EVENTS = new String[] {
-    "2017vabla", "2017vahay", 
-    "2017mdbet", 
-    "2017mdowi", "2017vapor",
-    "2017vagle", "2017mdedg"
-  };
+import com.vegetarianbaconite.blueapi.beans.Event;
 
-  // TODO - JavaFX Config display
+public class FrcRankPredictor {
+//  // TODO - JavaFX Config display
   private static final String EVENT_TO_PREDICT = "2017chcmp";
+//  private static final String EVENT_TO_PREDICT = "2017iscmp";
+//  private static final String EVENT_TO_PREDICT = "2017nccmp";
+//  private static final String EVENT_TO_PREDICT = "2017necmp";
 
 
   // TODO - JavaFX Config display
@@ -29,43 +31,82 @@ public class CHSPredictor {
   public static void main(String... args) {
 
     System.out.println("Retrieving teams for " + EVENT_TO_PREDICT);
-    List<Integer> dcmpTeams = TBACalc.api.getEventTeams(EVENT_TO_PREDICT).stream()
+    List<Integer> attendingTeams = TBACalc.api.getEventTeams(EVENT_TO_PREDICT).stream()
       .map(team -> team.getTeamNumber())
       .collect(Collectors.toList());
-    String[] schedule = ScheduleGenerator.getScheduleForTeams(dcmpTeams.size(), 12);
+    String[] schedule = ScheduleGenerator.getScheduleForTeams(attendingTeams.size(), 12);
+
+    SimpleDateFormat df = new SimpleDateFormat("yyyy-mm-dd");
+    Comparator<Event> eventSorter = (a, b) -> {
+      int result = 0;
+      try {
+        Date ad = df.parse(a.getDate());
+        Date bd = df.parse(b.getDate());
+        result = ad.compareTo(bd);
+      } catch (Exception e1) {
+        e1.printStackTrace();
+      }
+      return result;
+    };
+    Comparator<Event> reverseSorter = (a, b) -> eventSorter.compare(a, b) * -1;
     
+    System.out.println("Retrieving events attended by teams");
+    List<String> priorEvents = attendingTeams.stream()
+      .map(team -> TBACalc.api.getTeamEvents(team, 2017))  // Team # to List<Event>
+      .map(eventList -> // List<Event> to "Latest" event
+        eventList.stream()
+        // Filter future events signed up for, as well as target event in case it has happened
+          .filter(e -> e.isPast() && !e.getKey().equalsIgnoreCase(EVENT_TO_PREDICT))
+          .sorted(reverseSorter)
+          .findFirst()
+          .get()
+        ) // List<Event> to "Latest" event
+      .collect(Collectors.toSet()) // Stuff all results into a set to remove duplicates
+      .stream() // Stream that result so we can chronologically sort and map to keys
+      .sorted(eventSorter)
+      .map(event -> event.getKey()) // Event --> Event Key
+      .distinct()
+      .collect(Collectors.toList())
+      ;
     
+    // If the event has already happened, then the list will contain our event to "predict"
+    // This scenario happens when we're testing how close the prediction is to reality
+    priorEvents.remove(EVENT_TO_PREDICT);
+    System.out.println("Found " + priorEvents + " prior events to process as the teams' \"latest\" events.");
+
     Map<Integer, TeamStat> allEventStats = new HashMap<>();
     
-    for(String event : PRIOR_EVENTS) {
+    for(String event : priorEvents) {
       System.out.println("Processing " + event);
       TBACalc c = new TBACalc(event, true);
-      final Map<Integer, Double> opr = c.getForKey("opr");
-      final Map<Integer, Double> dpr = c.getForKey("dpr");
-
-      opr.keySet().parallelStream()
-        .map(team -> new TeamStat(team, c, opr.get(team), dpr.get(team)))
-        // So long as the events are in chronological order, the latest event
-        // will override earlier events
-        .forEach(stat -> {
-          allEventStats.remove(stat.mTeam);
-          allEventStats.put(stat.mTeam, stat); 
-        });
+      if(c.isValid) {
+        final Map<Integer, Double> opr = c.getForKey("opr");
+        final Map<Integer, Double> dpr = c.getForKey("dpr");
+  
+        opr.keySet().parallelStream() // opr.keySet() contains a list of teams at the event
+          .map(team -> new TeamStat(team, c, opr.get(team), dpr.get(team)))
+          // So long as the events are in chronological order, the latest event
+          // will override earlier events
+          .forEach(stat -> {
+            allEventStats.remove(stat.mTeam); // Theoretically shouldn't need...
+            allEventStats.put(stat.mTeam, stat); 
+          });
+      }
     }
-
     System.out.println("Normalizing Stats from 0 to Max Value");
     normalize(allEventStats);
     
     // Print the normalized team stats to the terminal
     System.out.println(TeamStat.getHeader());
     allEventStats.keySet().stream()
+      .filter(team -> attendingTeams.contains(team))
       .sorted()
       .map(team -> allEventStats.get(team))
       .forEach(System.out::println);
     
     // Init the rank averages array that stores each sim's rank for a team
     Map<Integer, List<Integer>> rankAverages = new HashMap<>();
-    for(Integer i : dcmpTeams) {
+    for(Integer i : attendingTeams) {
       rankAverages.put(i, new ArrayList<Integer>());
     }
     
@@ -74,9 +115,10 @@ public class CHSPredictor {
     double countFuelTieBreakers = 0;
     
     // Time to predict!
+    System.out.println("Performing " + NUM_SCHEDULES_TO_PREDICT + " simulations...");
     for(int i = 0; i < NUM_SCHEDULES_TO_PREDICT; i++) {
 //      System.out.println("Prediction schedule " + i);
-      SchedulePredictor sp = new SchedulePredictor(dcmpTeams, allEventStats, schedule);
+      SchedulePredictor sp = new SchedulePredictor(attendingTeams, allEventStats, schedule);
       // TODO - JavaFX Match display
       for(SchedulePredictor.Match m : sp.getMatches()) {
         allsimscores += m.getTotalScore();
@@ -85,6 +127,7 @@ public class CHSPredictor {
           countFuelTieBreakers++;
         }
         
+        // lol, "macro"
         if(NUM_SCHEDULES_TO_PREDICT < 5) {
           System.out.println(m);
         }
@@ -102,7 +145,7 @@ public class CHSPredictor {
         }
       });
       Collections.reverse(ranks);
-      System.out.println("Schedule " + i + " " + ranks);
+//      System.out.println("Schedule " + i + " " + ranks);
       
       // Store the ranking prediction for each team for this simulation run
       int rank = 1;
@@ -113,14 +156,15 @@ public class CHSPredictor {
     } // End simulation loop
     
     System.out.println("Finalizing averages");
-    // Average all ranks for all teams
-    // Probably a better way? Just hacked in with lots of maps for now.
-    Map<Integer, Double> dcmpRanks = new HashMap<>();
-    Map<Integer, Double> dcmpMin = new HashMap<>();
-    Map<Integer, Double> dcmpMax = new HashMap<>();
+    List<RankStat> ranks = new ArrayList<>();
+    
     for(Integer team : rankAverages.keySet()) {
       List<Integer> rs = rankAverages.get(team);
-      dcmpRanks.put(team, (double)rs.stream().reduce(Integer::sum).get() / ((double)NUM_SCHEDULES_TO_PREDICT));
+      RankStat stat = new RankStat();
+      
+      stat.mTeam = team;
+      stat.mRankAvg = (double)rs.stream().reduce(Integer::sum).get() / ((double)NUM_SCHEDULES_TO_PREDICT);
+      
       DescriptiveStatistics ds = new DescriptiveStatistics();
       rs.forEach(i -> ds.addValue(Double.valueOf(Integer.toString(i))));
       
@@ -132,17 +176,18 @@ public class CHSPredictor {
       // See table at https://en.wikipedia.org/wiki/Standard_deviation for confidence intervals
       // 1.644854 = 90% confidence
       // 1.281552 = 80% confidence
-      double sig = ds.getStandardDeviation() * 1.281552d;
-      dcmpMin.put(team, Math.max(1d, dcmpRanks.get(team)-sig));
-      dcmpMax.put(team, Math.min(dcmpTeams.size(), dcmpRanks.get(team)+sig));
+      // 1 = 68.8% confidence
+      double sig = ds.getStandardDeviation() * 1.281552;
+      stat.mRankLow = Math.max(1d, stat.mRankAvg-sig);
+      stat.mRankHigh = Math.min(attendingTeams.size(), stat.mRankAvg+sig);
+      ranks.add(stat);
     }
     
     System.out.println("TEAM\t10K-AVG\t80%-LO\t80%-HI");
-    for(Integer t : dcmpRanks.keySet()) {
-      System.out.println(t + "\t" + nf.format(dcmpRanks.get(t)) + "\t" + nf.format(dcmpMin.get(t)) + "\t" + nf.format(dcmpMax.get(t)));
-    }
+    ranks.stream()
+      .sorted((a, b) -> Double.compare(a.mRankAvg, b.mRankAvg))
+      .forEach(System.out::println);
     
-    System.out.println("Includes gear multiplier of " + SchedulePredictor.GEAR_MULTIPLIER + " due to better pegs @ DCMP");
     System.out.println("# of rotor RP matches predicted: " + 
       nf.format((double)SchedulePredictor.NUM_ROTOR_RP/(double)NUM_SCHEDULES_TO_PREDICT));
     System.out.println("# of fuel RP matches predicted: " +
@@ -177,6 +222,17 @@ public class CHSPredictor {
       
     }
     
+  }
+  
+  private static class RankStat {
+    private int mTeam;
+    private double mRankAvg;
+    private double mRankHigh;
+    private double mRankLow;
+    
+    public String toString() {
+      return mTeam  + "\t" + nf.format(mRankAvg) + "\t" + nf.format(mRankLow)  + "\t" + nf.format(mRankHigh);
+    }
   }
 
   private static final DecimalFormat nf = new DecimalFormat("0.0");

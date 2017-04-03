@@ -1,0 +1,1 @@
+ERROR: is too few teams for a tournament, use -o to override for off-season events

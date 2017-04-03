@@ -25,9 +25,16 @@ public class TBACalc {
   private double[][] matrix, scores;
   private RealMatrix finalMatrix;
   private CholeskyDecomposition cholesky;
+  public final boolean isValid;
 
   public TBACalc(String eventKey, Boolean qualsOnly) {
     eventMatches = api.getEventMatches(eventKey);
+    if(eventMatches.isEmpty()){
+      isValid = false;
+      return;
+    } else {
+      isValid = true;
+    }
 
     for (Match m : eventMatches) {
       for (String t : m.getAlliances().getRed().getTeams())

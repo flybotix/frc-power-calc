@@ -19,19 +19,21 @@ public class SchedulePredictor {
     random.forEach(team -> mTeams.put(team, new Team(team, pStats.get(team))));
     
     // Assign schedule & calculate score
-    for(int i = 0; i < pSchedule.length; i++) {
-      StringTokenizer st = new StringTokenizer(pSchedule[i], " ");
-      Alliance red = new Alliance(
-        random.get(Integer.parseInt(st.nextToken())-1), 
-        random.get(Integer.parseInt(st.nextToken())-1), 
-        random.get(Integer.parseInt(st.nextToken())-1));
-      Alliance blue = new Alliance(
-        random.get(Integer.parseInt(st.nextToken())-1), 
-        random.get(Integer.parseInt(st.nextToken())-1), 
-        random.get(Integer.parseInt(st.nextToken())-1));
-      Match match = new Match(i+1, red, blue);
-      match.calcScore();
-      mMatches.add(match);
+    for(int i = 0; i < pSchedule.length; i++) {  // 2 empty lines at end of some generated outputs
+      if(pSchedule[i] != null && pSchedule[i].length() > 0) {
+        StringTokenizer st = new StringTokenizer(pSchedule[i], " ");
+        Alliance red = new Alliance(
+          random.get(Integer.parseInt(st.nextToken())-1), 
+          random.get(Integer.parseInt(st.nextToken())-1), 
+          random.get(Integer.parseInt(st.nextToken())-1));
+        Alliance blue = new Alliance(
+          random.get(Integer.parseInt(st.nextToken())-1), 
+          random.get(Integer.parseInt(st.nextToken())-1), 
+          random.get(Integer.parseInt(st.nextToken())-1));
+        Match match = new Match(i+1, red, blue);
+        match.calcScore();
+        mMatches.add(match);
+      }
     }
   }
   
@@ -91,8 +93,8 @@ public class SchedulePredictor {
   static int NUM_KPA_RP = 0;
   static int NUM_ROTOR_RP = 0;
   static int NUM_TIES = 0;
-  static double GEAR_MULTIPLIER = 1.1;
-  static double FUEL_MULTIPLIER = 1.4;
+  static double GEAR_MULTIPLIER = 1.25;
+  static double FUEL_MULTIPLIER = 1.25;
   
   private class Alliance {
     List<Team> teams = new ArrayList<>();
@@ -109,6 +111,8 @@ public class SchedulePredictor {
     public Integer calcScore() {
       // Auton move & Free Gear
       double value = 55d;
+
+      double mFuelScore = 0;
       
       for(Breakdown2017 stat : TeamStat.CalculatedValues) {
         switch(stat) {
@@ -118,7 +122,7 @@ public class SchedulePredictor {
         case teleopFuelPoints: 
           // We assume we've (mostly) filtered out non-fuel teams here.
           // Seems to be inline with what 1262, 346, & 836 did in their last few matches
-          value += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
+          mFuelScore += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
           break;
           
         // Alliance-cooperative static scores
@@ -152,13 +156,19 @@ public class SchedulePredictor {
           value += mRotorRP * stat.getStaticValue();
           
         case kPaRankingPointAchieved:
-          Double kpa = teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
-          mFuelRP = kpa >= 40d ? 1 : 0;
+          Double p_kpaBonus = teams.stream()
+            .map(t -> t.stats.get(stat) / stat.getStaticValue()*3*FUEL_MULTIPLIER)
+            .reduce(Double::sum).get()*FUEL_MULTIPLIER;
+          mFuelRP = Math.random() >= p_kpaBonus ? 0 : 1;
           break;
         default:
         }
       }
-
+      
+      if(mFuelRP > 0) {
+        value += Math.max(40d, mFuelScore);
+      }
+      
       mScore = (int)value;
       return mScore;
     }

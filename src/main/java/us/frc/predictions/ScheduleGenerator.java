@@ -63,12 +63,18 @@ public class ScheduleGenerator {
   private static String generateFileName(int pNumTeams, int pNumMatchesPerTeam) {
     return "Schedule-" + pNumTeams + "-" + pNumMatchesPerTeam + ".txt";
   }
+  private static String generateResourceName(int pNumTeams, int pNumMatchesPerTeam) {
+    return SCHEDULE_PATH + File.separator + generateFileName(pNumTeams, pNumMatchesPerTeam);
+  }
   
   /**
    * Self-explanatory.  Order shouldn't matter.  Returns null if there were errors.
    * @throws IOException if there was a problem reading the file
    */
   private static String[] loadScheduleFromFile(int pNumTeams, int pNumMatchesPerTeam) throws IOException {
+    // TODO -implement way to read file from fully-self-contained jar
+//    ScheduleGenerator.class.getResource(generateResourceName(pNumTeams, pNumMatchesPerTeam));
+    
     String file = generateFileName(pNumTeams, pNumMatchesPerTeam);
     File f = new File(SCHEDULE_PATH, file);
     // We don't really care about order since simulating match 2 before match 1 nets the same
@@ -103,9 +109,12 @@ public class ScheduleGenerator {
       line = line
         .replaceAll(" 0", "")
         .replaceFirst("[0-9]{1,3} ", "")
+        .trim()
         ;
-  //    System.out.println(line);
-      lines.add(line);
+      if(!"".equals(line)) { 
+    //    System.out.println(line);
+        lines.add(line);
+      }
     }
     pr.waitFor();
     in.close();
@@ -117,10 +126,10 @@ public class ScheduleGenerator {
   }
 
   public static void main(String[] pArgs) throws Exception {
-    int start = 40;
+    int start = 241;
     int end = 100;
     
-    for(int t = start ; t < end; t++) {
+    for(int t = start ; t <= end; t++) {
       for(int m = 7; m <= 12; m++) {
         File file = new File(SCHEDULE_PATH, generateFileName(t, m));
         if(!file.exists()) {
