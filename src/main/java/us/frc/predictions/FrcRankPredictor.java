@@ -17,6 +17,8 @@ import com.vegetarianbaconite.blueapi.beans.Event;
 
 public class FrcRankPredictor {
 //   TODO - JavaFX Config display
+//  private static final String EVENT_TO_PREDICT = "2017mrcmp";
+//  private static final String EVENT_TO_PREDICT = "2017gacmp";
   private static final String EVENT_TO_PREDICT = "2017chcmp";
 //  private static final String EVENT_TO_PREDICT = "2017iscmp";
 //  private static final String EVENT_TO_PREDICT = "2017nccmp";

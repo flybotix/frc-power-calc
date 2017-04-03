@@ -76,37 +76,41 @@ public class TBACalc {
 
       Map<Integer, Double> returnedMap = new HashMap<>();
 
-      for (Match m : eventMatches) {
-        if (!m.getCompLevel().equals("qm") && qualsOnly)
-          continue;
-        Alliance blue = m.getAlliances().getBlue();
-        Alliance red = m.getAlliances().getRed();
-        for (String team : blue.getTeams())
-          if (key.equalsIgnoreCase("opr")) {
-            scores[teamKeyPositionMap.get(team)][0] += blue.getScore();
-          } else if (key.equalsIgnoreCase("dpr")) {
-            scores[teamKeyPositionMap.get(team)][0] += red.getScore();
-          } else {
-            if(anti) {
-              // TODO - Here, we should use an interface that is custom-mapped to the enum each year
-              scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getRed().get(key));
+        for (Match m : eventMatches) {
+          if (!m.getCompLevel().equals("qm") && qualsOnly)
+            continue;
+          Alliance blue = m.getAlliances().getBlue();
+          Alliance red = m.getAlliances().getRed();
+          try {
+          for (String team : blue.getTeams())
+            if (key.equalsIgnoreCase("opr")) {
+              scores[teamKeyPositionMap.get(team)][0] += blue.getScore();
+            } else if (key.equalsIgnoreCase("dpr")) {
+              scores[teamKeyPositionMap.get(team)][0] += red.getScore();
             } else {
-              scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getBlue().get(key));
+              if(anti) {
+                // TODO - Here, we should use an interface that is custom-mapped to the enum each year
+                scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getRed().get(key));
+              } else {
+                scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getBlue().get(key));
+              }
             }
-          }
-        for (String team : red.getTeams())
-          if (key.equalsIgnoreCase("opr"))
-            scores[teamKeyPositionMap.get(team)][0] += red.getScore();
-          else if (key.equalsIgnoreCase("dpr")) {
-            scores[teamKeyPositionMap.get(team)][0] += blue.getScore();
-          } else {
-            if(anti) {
-              scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getBlue().get(key));
+          for (String team : red.getTeams())
+            if (key.equalsIgnoreCase("opr"))
+              scores[teamKeyPositionMap.get(team)][0] += red.getScore();
+            else if (key.equalsIgnoreCase("dpr")) {
+              scores[teamKeyPositionMap.get(team)][0] += blue.getScore();
             } else {
-              scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getRed().get(key));
+              if(anti) {
+                scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getBlue().get(key));
+              } else {
+                scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getRed().get(key));
+              }
             }
+          } catch (Exception e) {
+            // I mean .. what can we do with bad TBA data but toss it?
           }
-      }
+        }
 
       RealMatrix scoreMatrix = MatrixUtils.createRealMatrix(scores);
       double[][] output = cholesky.getSolver().solve(scoreMatrix).getData();
