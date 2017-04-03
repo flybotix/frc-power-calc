@@ -1,6 +1,7 @@
 package us.frc.predictions;
 
 import static us.frc.predictions.Breakdown2017.autoFuelPoints;
+import static us.frc.predictions.Breakdown2017.autoMobilityPoints;
 import static us.frc.predictions.Breakdown2017.kPaRankingPointAchieved;
 import static us.frc.predictions.Breakdown2017.rotor1Auto;
 import static us.frc.predictions.Breakdown2017.rotor2Auto;
@@ -25,6 +26,7 @@ public class TeamStat {
 
   public static EnumSet<Breakdown2017> CalculatedValues = EnumSet.of(
     rotor1Auto, rotor2Auto,
+    autoMobilityPoints,
     autoFuelPoints, teleopFuelPoints, 
     rotor2Engaged, rotor3Engaged, rotor4Engaged,
     rotorRankingPointAchieved, kPaRankingPointAchieved,
@@ -48,7 +50,7 @@ public class TeamStat {
    * @return String that represents the headers of row outputs
    */
   public static String getHeader() {
-    return "TEAM\tOPR\tCCWM\tVALUE\tAUTOR1\tROTOR2\tROTOR3\tROTOR4\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\t4ROTORB";
+    return "TEAM\tOPR\tCCWM\tVALUE\tAUTOR1\tAMOVE\tROTOR2\tROTOR3\tROTOR4\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\t4ROTORB";
   }
   private static char SEP = '\t';
   public String toString(){ 
@@ -58,6 +60,7 @@ public class TeamStat {
       .append(SEP).append(nf.format(CCWM))
       .append(SEP).append(nf.format(getAddedValue()))
       .append(SEP).append(nf.format(get(rotor1Auto)))
+      .append(SEP).append(nf.format(get(autoMobilityPoints)))
       .append(SEP).append(nf.format(get(rotor2Engaged)))
       .append(SEP).append(nf.format(get(rotor3Engaged)))
       .append(SEP).append(nf.format(get(rotor4Engaged)))
@@ -89,6 +92,7 @@ public class TeamStat {
     for(Breakdown2017 stat : CalculatedValues) {
       result += get(stat);
     }
+    result += Breakdown2017.rotor1Engaged.getStaticValue()/3d;
     return result;
   }
   

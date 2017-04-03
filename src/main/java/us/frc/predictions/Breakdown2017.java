@@ -15,6 +15,9 @@ public enum Breakdown2017 {
   
   public Double getStaticValue() {
     switch(this) {
+    case autoMobilityPoints:
+      return 5d;
+      
     case rotor1Auto: 
     case rotor2Auto:
       return 20d;

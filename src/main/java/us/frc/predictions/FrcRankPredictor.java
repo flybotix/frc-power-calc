@@ -7,10 +7,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -18,7 +16,7 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import com.vegetarianbaconite.blueapi.beans.Event;
 
 public class FrcRankPredictor {
-//  // TODO - JavaFX Config display
+//   TODO - JavaFX Config display
   private static final String EVENT_TO_PREDICT = "2017chcmp";
 //  private static final String EVENT_TO_PREDICT = "2017iscmp";
 //  private static final String EVENT_TO_PREDICT = "2017nccmp";
@@ -93,10 +91,11 @@ public class FrcRankPredictor {
           });
       }
     }
-    System.out.println("Normalizing Stats from 0 to Max Value");
-    normalize(allEventStats);
     
-    // Print the normalized team stats to the terminal
+    System.out.println("Normalizing Stats from 0 to Max Value");
+    SchedulePredictor.normalize(allEventStats);
+    
+    // Print the team stats to the terminal
     System.out.println(TeamStat.getHeader());
     allEventStats.keySet().stream()
       .filter(team -> attendingTeams.contains(team))
@@ -113,6 +112,7 @@ public class FrcRankPredictor {
     double allsimscores = 0;
     double allsimwinscores = 0;
     double countFuelTieBreakers = 0;
+    double fourRotorTrump = 0;
     
     // Time to predict!
     System.out.println("Performing " + NUM_SCHEDULES_TO_PREDICT + " simulations...");
@@ -123,8 +123,11 @@ public class FrcRankPredictor {
       for(SchedulePredictor.Match m : sp.getMatches()) {
         allsimscores += m.getTotalScore();
         allsimwinscores += m.getWinningScore();
-        if(m.getMargin() < 5 && m.getMargin() > 0) {
+        if(m.didFuelBreakTie()) {
           countFuelTieBreakers++;
+        }
+        if(m.did4RotorTrumpFuel()) {
+          fourRotorTrump++;
         }
         
         // lol, "macro"
@@ -183,45 +186,29 @@ public class FrcRankPredictor {
       ranks.add(stat);
     }
     
-    System.out.println("TEAM\t10K-AVG\t80%-LO\t80%-HI");
-    ranks.stream()
+    System.out.println("RANK\tTEAM\t10K-AVG\t80%-LO\t80%-HI");
+    ranks = ranks.stream()
       .sorted((a, b) -> Double.compare(a.mRankAvg, b.mRankAvg))
-      .forEach(System.out::println);
-    
-    System.out.println("# of rotor RP matches predicted: " + 
-      nf.format((double)SchedulePredictor.NUM_ROTOR_RP/(double)NUM_SCHEDULES_TO_PREDICT));
-    System.out.println("# of fuel RP matches predicted: " +
-      nf.format((double)SchedulePredictor.NUM_KPA_RP / (double)NUM_SCHEDULES_TO_PREDICT));
-    System.out.println("# of Ties predicted: " +
-      nf.format((double)SchedulePredictor.NUM_TIES / (double)NUM_SCHEDULES_TO_PREDICT));
-    System.out.println("Average Alliance Score: " + nf.format(allsimscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT/2d));
-    System.out.println("Average Winning Score: " + nf.format(allsimwinscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT));
-    double avgtiebreak = countFuelTieBreakers/(double)NUM_SCHEDULES_TO_PREDICT;
-    System.out.println("# of Matches Where Fuel broke the Tie: " + 
-      nf.format(avgtiebreak) + " (" + nf.format(avgtiebreak/(double)schedule.length*100d) + "%)");
-  }
-  
-  /**
-   * Clamps, normalizes, and otherwise cleans up the stats so they make sense for 'added value'.
-   */
-  private static void normalize(Map<Integer, TeamStat> allEventStats) {
-    for(Integer team : allEventStats.keySet()) {
-      for(Breakdown2017 stat : TeamStat.CalculatedValues) {
-        Double v = Math.min(stat.getStaticValue(), Math.max(0d, allEventStats.get(team).get(stat)));
-        
-        // Hard to tell exactly which teams score "1 point every other match" vs a team that gets lucky.
-        // This is important for 2017, because it is the tie-breaker in a lot of matches.
-        if(stat == Breakdown2017.autoFuelPoints || stat == Breakdown2017.teleopFuelPoints) {
-       // 0.3333 OPR = 1 point each match.  Thus less than 1 point each match: probably didn't do fuel
-          if(v < 0.33d) { 
-            v = 0d;
-          }
-        }
-        allEventStats.get(team).override(stat, v);
-      }
-      
+      .collect(Collectors.toList());
+    for(int i = 0; i < ranks.size(); i++) {
+      System.out.println((i+1) + "\t" + ranks.get(i));
     }
     
+    outputPct("# of rotor RP matches predicted: ",SchedulePredictor.NUM_ROTOR_RP, schedule.length);
+    outputPct("# of fuel RP matches predicted: ", SchedulePredictor.NUM_KPA_RP, schedule.length);
+    outputPct("# of Ties predicted: ", (double)SchedulePredictor.NUM_TIES, schedule.length);
+    outputPct("# of Matches Where Fuel broke the Tie: ", countFuelTieBreakers, schedule.length);
+    outputPct("# of Matches where 4 rotors won over fuel: ", fourRotorTrump, schedule.length);
+    
+    System.out.println("Average Alliance Score: " + nf.format(allsimscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT/2d));
+    System.out.println("Average Winning Score: " + nf.format(allsimwinscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT));
+
+  }
+  
+  private static void outputPct(String message, double totalValue, int schedulelength) {
+    double avgpct = totalValue/(double)NUM_SCHEDULES_TO_PREDICT;
+    System.out.println(message + 
+      nf.format(avgpct) + " (" + nf.format(avgpct/(double)schedulelength*100d) + "%)");
   }
   
   private static class RankStat {
