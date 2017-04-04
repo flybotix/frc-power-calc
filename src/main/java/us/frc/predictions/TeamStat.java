@@ -50,7 +50,7 @@ public class TeamStat {
    * @return String that represents the headers of row outputs
    */
   public static String getHeader() {
-    return "TEAM\tOPR\tCCWM\tVALUE\tAUTOR1\tAMOVE\tROTOR2\tROTOR3\tROTOR4\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\t4ROTORB";
+    return "TEAM\tOPR\tCCWM\tVALUE\tAUTOR1\tAMOVE\tROTOR2\tROTOR3\tROTOR4\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\t4ROTB%";
   }
   private static char SEP = '\t';
   public String toString(){ 

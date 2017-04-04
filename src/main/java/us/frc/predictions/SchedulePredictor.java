@@ -16,7 +16,7 @@ import java.util.StringTokenizer;
 
 public class SchedulePredictor {
   // Teams & field elements get better as time goes on.  How much better?
-  static double GEAR_MULTIPLIER = 1.15;
+  static double GEAR_MULTIPLIER = 1.1;
   static double FUEL_MULTIPLIER = 1.1;
   
   
@@ -58,24 +58,41 @@ public class SchedulePredictor {
    */
   static void normalize(Map<Integer, TeamStat> allEventStats) {
     for(Integer team : allEventStats.keySet()) {
+      TeamStat ts = allEventStats.get(team);
       for(Breakdown2017 stat : TeamStat.CalculatedValues) {
-        // Max is the static value / 3.  As more teams do a task, 
-        // OPR of that task -> [Value] / 3
-        // Only applicable to cooperative tasks that have non-linear values
-        double mult = CappedOPR.contains(stat) ? 1d/3d : 1;
-        Double v = Math.min(stat.getStaticValue() * mult, Math.max(0d, allEventStats.get(team).get(stat)));
-        
-        // Hard to tell exactly which teams score "1 point every other match" vs a team that gets lucky.
-        // This is important for 2017, because it is the tie-breaker in a lot of matches.
-        if(stat == Breakdown2017.autoFuelPoints || stat == Breakdown2017.teleopFuelPoints) {
-       // 0.3333 OPR = 1 point each match.  Thus less than 1 point each match: probably didn't do fuel
-          if(v < 0.3d) { 
-            v = 0d;
+        if(stat != rotor3Engaged && stat != rotor2Engaged) {
+          // Max is the static value / 3.  As more teams do a task, 
+          // OPR of that task -> [Value] / 3
+          // Only applicable to cooperative tasks that have non-linear values
+          double staticvalue = (CappedOPR.contains(stat) ? 1d/3d : 1) * stat.getStaticValue();
+          
+          double v = Math.min(staticvalue, Math.max(0d, ts.get(stat)));
+          
+          // Hard to tell exactly which teams score "1 point every other match" vs a team that gets lucky.
+          // This is important for 2017, because it is the tie-breaker in a lot of matches.
+          if(stat == Breakdown2017.autoFuelPoints || stat == Breakdown2017.teleopFuelPoints) {
+         // 0.3333 OPR = 1 point each match.  Thus less than 1 point each match: probably didn't do fuel
+            if(v < 0.3d) { 
+              v = 0d;
+            }
           }
+          ts.override(stat, v);
         }
-        allEventStats.get(team).override(stat, v);
       }
+
+      // Roll up rotors 2 & 3
+      double staticvalue = rotor2Engaged.getStaticValue() /3d;
+      double value2 = Math.max(0d, ts.get(rotor2Engaged));
+      double extra2 = Math.max(0d, value2 - staticvalue);
+      ts.override(rotor2Engaged, Math.min(staticvalue, value2));
+      //Repeat for 3
+      double value3 = Math.max(0d, ts.get(rotor3Engaged) + extra2);
+      double extra3 = Math.max(0d, value3 - staticvalue);
+      ts.override(rotor3Engaged, Math.min(staticvalue, value3));
       
+      // Add extra3 for rotor 4
+      double value4 = Math.max(0d, ts.get(rotor4Engaged) + extra3);
+      ts.override(rotor4Engaged, value4);
     }
     
   }
@@ -241,22 +258,10 @@ public class SchedulePredictor {
         // the probability of achievement is based upon opr value, not true/false.
 //        case rotorRankingPointAchieved:
         case rotor4Engaged:
-          // If probability of 3 rotors is so significant between all three partners, there is a
-          // very high likelihood they will also be able to hit 4 rotors
-          // Shown in NC state & NE-Hartford
-          double p_3 = teams.stream()
-            .map(t -> t.stats.get(Breakdown2017.rotor3Engaged)*3 / stat.getStaticValue()) // divide OPR by max to get probability
-            .reduce(Double::sum).get();
-          Double p_4rotor = 1d;
-          if(p_3 >= Breakdown2017.rotor3Engaged.getStaticValue()) {
-            p_4rotor = teams.stream()
-              .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
-              .reduce(Double::sum).get() * 3; // max engagement for the alliance
-          } else {
-            p_4rotor = teams.stream()
+          // Rotor 4 is an average of rotor4Engaged OPR's.  So SUM then divide by 3.
+          Double p_4rotor = teams.stream()
              .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
-             .reduce(Double::max).get() * GEAR_MULTIPLIER; // max engagement for the alliance
-          }
+             .reduce(Double::sum).get() / (double)teams.size(); // avg engagement for the alliance
           mRotorRP = Math.random() > p_4rotor ? 0 : 1;
           value += mRotorRP * stat.getStaticValue();
           
