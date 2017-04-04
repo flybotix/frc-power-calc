@@ -23,10 +23,14 @@ public class FrcRankPredictor {
 //  private static final String EVENT_TO_PREDICT = "2017iscmp";
 //  private static final String EVENT_TO_PREDICT = "2017nccmp";
 //  private static final String EVENT_TO_PREDICT = "2017necmp";
+//  private static final String EVENT_TO_PREDICT = "2017pncmp";
+//  private static final String EVENT_TO_PREDICT = "2017incmp";
+//  private static final String EVENT_TO_PREDICT = "2017micmp";
+//  private static final String EVENT_TO_PREDICT = "2017oncmp";
 
 
   // TODO - JavaFX Config display
-  private static final int NUM_SCHEDULES_TO_PREDICT = 10000;
+  private static final double NUM_SCHEDULES_TO_PREDICT = 100000;
   
   public static void main(String... args) {
 
@@ -35,6 +39,7 @@ public class FrcRankPredictor {
       .map(team -> team.getTeamNumber())
       .collect(Collectors.toList());
     String[] schedule = ScheduleGenerator.getScheduleForTeams(attendingTeams.size(), 12);
+    System.out.println("Finished retrieving randomized schedule with " + schedule.length + " matches");
 
     SimpleDateFormat df = new SimpleDateFormat("yyyy-mm-dd");
     Comparator<Event> eventSorter = (a, b) -> {
@@ -115,6 +120,7 @@ public class FrcRankPredictor {
     double allsimwinscores = 0;
     double countFuelTieBreakers = 0;
     double fourRotorTrump = 0;
+    double autonRotorTieCount = 0;
     
     // Time to predict!
     System.out.println("Performing " + NUM_SCHEDULES_TO_PREDICT + " simulations...");
@@ -127,9 +133,10 @@ public class FrcRankPredictor {
         allsimwinscores += m.getWinningScore();
         if(m.didFuelBreakTie()) {
           countFuelTieBreakers++;
-        }
-        if(m.did4RotorTrumpFuel()) {
+        } else if(m.did4RotorTrumpFuel()) {
           fourRotorTrump++;
+        } else if (m.didAutonGearMakeDifference()) {
+          autonRotorTieCount++;
         }
         
         // lol, "macro"
@@ -168,7 +175,7 @@ public class FrcRankPredictor {
       RankStat stat = new RankStat();
       
       stat.mTeam = team;
-      stat.mRankAvg = (double)rs.stream().reduce(Integer::sum).get() / ((double)NUM_SCHEDULES_TO_PREDICT);
+      stat.mRankAvg = (double)rs.stream().reduce(Integer::sum).get() / NUM_SCHEDULES_TO_PREDICT;
       
       DescriptiveStatistics ds = new DescriptiveStatistics();
       rs.forEach(i -> ds.addValue(Double.valueOf(Integer.toString(i))));
@@ -188,7 +195,7 @@ public class FrcRankPredictor {
       ranks.add(stat);
     }
     
-    System.out.println("RANK\tTEAM\t10K-AVG\t80%-LO\t80%-HI");
+    System.out.println("RANK\tTEAM\t100K-AVG\t80%-LO\t80%-HI");
     ranks = ranks.stream()
       .sorted((a, b) -> Double.compare(a.mRankAvg, b.mRankAvg))
       .collect(Collectors.toList());
@@ -201,14 +208,15 @@ public class FrcRankPredictor {
     outputPct("# of Ties predicted: ", (double)SchedulePredictor.NUM_TIES, schedule.length);
     outputPct("# of Matches Where Fuel broke the Tie: ", countFuelTieBreakers, schedule.length);
     outputPct("# of Matches where 4 rotors won over fuel: ", fourRotorTrump, schedule.length);
+    outputPct("# of Matches where Auton Gear Made the difference: ", autonRotorTieCount, schedule.length);
     
-    System.out.println("Average Alliance Score: " + nf.format(allsimscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT/2d));
-    System.out.println("Average Winning Score: " + nf.format(allsimwinscores/(double)schedule.length/(double)NUM_SCHEDULES_TO_PREDICT));
+    System.out.println("Average Alliance Score: " + nf.format(allsimscores/(double)schedule.length/NUM_SCHEDULES_TO_PREDICT/2d));
+    System.out.println("Average Winning Score: " + nf.format(allsimwinscores/(double)schedule.length/NUM_SCHEDULES_TO_PREDICT));
 
   }
   
   private static void outputPct(String message, double totalValue, int schedulelength) {
-    double avgpct = totalValue/(double)NUM_SCHEDULES_TO_PREDICT;
+    double avgpct = totalValue/NUM_SCHEDULES_TO_PREDICT;
     System.out.println(message + 
       nf.format(avgpct) + " (" + nf.format(avgpct/(double)schedulelength*100d) + "%)");
   }

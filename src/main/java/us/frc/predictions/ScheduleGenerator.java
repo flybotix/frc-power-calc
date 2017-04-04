@@ -50,8 +50,6 @@ public class ScheduleGenerator {
     if(result == null) {
       System.err.println("Unable to find a schedule...");
       System.exit(-1);
-    } else {
-      System.out.println("Finished retrieving randomized schedule");
     }
     
     return result;

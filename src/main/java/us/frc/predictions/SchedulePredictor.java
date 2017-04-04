@@ -16,8 +16,8 @@ import java.util.StringTokenizer;
 
 public class SchedulePredictor {
   // Teams & field elements get better as time goes on.  How much better?
-  static double GEAR_MULTIPLIER = 1.05;
-  static double FUEL_MULTIPLIER = 1.10;
+  static double GEAR_MULTIPLIER = 1.15;
+  static double FUEL_MULTIPLIER = 1.1;
   
   
   private final Map<Integer, Team> mTeams = new HashMap<>();
@@ -50,7 +50,7 @@ public class SchedulePredictor {
   }
   public static EnumSet<Breakdown2017> CappedOPR = EnumSet.of(
     rotor1Auto, rotor2Auto,
-    rotor2Engaged, rotor3Engaged, rotor4Engaged
+    rotor2Engaged, rotor3Engaged
   );
   
   /**
@@ -124,13 +124,23 @@ public class SchedulePredictor {
       return red.mScore > blue.mScore ? red.mScore : blue.mScore;
     }
     
+    public boolean didAutonGearMakeDifference() {
+      boolean result = false;
+      if(red.mScore > blue.mScore && red.mAutonGear) {
+        result = red.mScore - Breakdown2017.rotor1Auto.getStaticValue() <= blue.mScore;
+      } else if (blue.mScore > red.mScore && blue.mAutonGear) {
+        result = blue.mScore - Breakdown2017.rotor1Auto.getStaticValue() <= red.mScore;
+      }
+      return result;
+    }
+    
     public boolean didFuelBreakTie() {
       boolean result = false;
       if(!red.mScore.equals(blue.mScore)) {
         // It only broke the tie if one scored fuel and the other didn't
-        if(red.mFuelScore == 0 && red.mScore < blue.mScore && blue.mFuelScore >= 1) {
+        if(red.mFuelScore == 0 && red.mScore < blue.mScore && blue.mFuelScore >= 1 && blue.mScore - blue.mFuelScore == red.mScore) {
           result = true;
-        } else if (blue.mFuelScore == 0 && blue.mScore < red.mScore && red.mFuelScore >= 1) {
+        } else if (blue.mFuelScore == 0 && blue.mScore < red.mScore && red.mFuelScore >= 1 && red.mScore - red.mFuelScore == blue.mScore) {
           result = true;
         }
       }
@@ -167,6 +177,7 @@ public class SchedulePredictor {
     private Integer mScore = 0;
     private Integer mRotorRP = 0;
     private Integer mFuelRP = 0;
+    private boolean mAutonGear = false;
     int mFuelScore = 0;
     
     public Alliance(Integer... pTeams) {
@@ -199,14 +210,23 @@ public class SchedulePredictor {
         // Alliance-cooperative static scores
         case rotor1Auto: 
         case rotor2Auto:
-        case rotor2Engaged:
-        case rotor3Engaged:
           // Max probability or value of alliance
           // OPR-capped, so mult by 3
           double p_Arotor = teams.stream()
             .map(t -> t.stats.get(stat)*3 / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
             .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
-          value += Math.random() > p_Arotor ? 0 : stat.getStaticValue();
+          mAutonGear |= !(Math.random() > p_Arotor);
+          value += mAutonGear ? 0 : stat.getStaticValue();
+          break;
+          
+        case rotor2Engaged:
+        case rotor3Engaged:
+          // Max probability or value of alliance
+          // OPR-capped, so mult by 3
+          double p_Trotor = teams.stream()
+            .map(t -> t.stats.get(stat)*3 / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
+            .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
+          value += Math.random() > p_Trotor ? 0 : stat.getStaticValue();
           break;
           
         case teleopTakeoffPoints:
@@ -221,10 +241,22 @@ public class SchedulePredictor {
         // the probability of achievement is based upon opr value, not true/false.
 //        case rotorRankingPointAchieved:
         case rotor4Engaged:
-          Double p_4rotor = teams.stream()
-            // OPR-capped, so mult by 3
-            .map(t -> t.stats.get(stat)*3 / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
-            .reduce(Double::max).get(); // max engagement for the alliance
+          // If probability of 3 rotors is so significant between all three partners, there is a
+          // very high likelihood they will also be able to hit 4 rotors
+          // Shown in NC state & NE-Hartford
+          double p_3 = teams.stream()
+            .map(t -> t.stats.get(Breakdown2017.rotor3Engaged)*3 / stat.getStaticValue()) // divide OPR by max to get probability
+            .reduce(Double::sum).get();
+          Double p_4rotor = 1d;
+          if(p_3 >= Breakdown2017.rotor3Engaged.getStaticValue()) {
+            p_4rotor = teams.stream()
+              .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
+              .reduce(Double::sum).get() * 3; // max engagement for the alliance
+          } else {
+            p_4rotor = teams.stream()
+             .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
+             .reduce(Double::max).get() * GEAR_MULTIPLIER; // max engagement for the alliance
+          }
           mRotorRP = Math.random() > p_4rotor ? 0 : 1;
           value += mRotorRP * stat.getStaticValue();
           
