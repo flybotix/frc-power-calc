@@ -7,7 +7,12 @@ public enum Breakdown2017 {
   teleopFuelHigh, teleopTakeoffPoints, kPaRankingPointAchieved, autoFuelLow, 
   teleopFuelLow, rotorBonusPoints, autoMobilityPoints, rotor3Engaged, autoFuelPoints, 
   teleopFuelPoints, touchpadMiddle, touchpadNear, rotorRankingPointAchieved, 
-  kPaBonusPoints, rotor2Engaged;
+  kPaBonusPoints, rotor2Engaged,
+  
+  // Custom
+  aGearCount,
+  tGearCount,
+  gearCount;
   
   public String toString() {
     return name();
@@ -20,13 +25,16 @@ public enum Breakdown2017 {
       
     case rotor1Auto: 
     case rotor2Auto:
-      return 20d;
+      return 1d;
+      
+     case autoRotorPoints:
+       return 20d;
       
     case rotor1Engaged:
     case rotor2Engaged:
     case rotor3Engaged:
     case rotor4Engaged:
-      return 40d;
+      return 1d;
       
     case teleopTakeoffPoints:
       return 50d;

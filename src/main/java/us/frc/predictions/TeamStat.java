@@ -2,6 +2,7 @@ package us.frc.predictions;
 
 import static us.frc.predictions.Breakdown2017.autoFuelPoints;
 import static us.frc.predictions.Breakdown2017.autoMobilityPoints;
+import static us.frc.predictions.Breakdown2017.autoRotorPoints;
 import static us.frc.predictions.Breakdown2017.kPaRankingPointAchieved;
 import static us.frc.predictions.Breakdown2017.rotor1Auto;
 import static us.frc.predictions.Breakdown2017.rotor2Auto;
@@ -16,17 +17,20 @@ import java.text.DecimalFormat;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.StringTokenizer;
 
 public class TeamStat {
   public final Integer mTeam;
   public final Double OPR, DPR, CCWM;
+  public final String mLocation;
+  public final String EVENT;
   private final Map<Breakdown2017, Double> mStats = new HashMap<>();
   private final Map<Breakdown2017, Double> mAntiStats = new HashMap<>();
   
 
   public static EnumSet<Breakdown2017> CalculatedValues = EnumSet.of(
     rotor1Auto, rotor2Auto,
-    autoMobilityPoints,
+    autoMobilityPoints, //autoRotorPoints,
     autoFuelPoints, teleopFuelPoints, 
     rotor2Engaged, rotor3Engaged, rotor4Engaged,
     rotorRankingPointAchieved, kPaRankingPointAchieved,
@@ -36,24 +40,63 @@ public class TeamStat {
   public TeamStat (Integer pTeam, TBACalc pCalc, Double pOpr, Double pDpr) {
     mTeam = pTeam;
     for(Breakdown2017 stat : CalculatedValues) {
-      mStats.put(stat, pCalc.getForKey(stat.name()).get(pTeam));
-      mAntiStats.put(stat, pCalc.getForKey(stat.name(), true).get(pTeam));
+      mStats.put(stat, pCalc.getForKey(stat.name()).get(pTeam)/stat.getStaticValue());
+      mAntiStats.put(stat, pCalc.getForKey(stat.name(), true).get(pTeam)/stat.getStaticValue());
     }
+    String loc = TBACalc.api.getTeam(mTeam).getLocation();
+    int firstComma = loc.indexOf(",");
+    
+    loc = loc
+      .substring(firstComma, loc.indexOf(",", firstComma+1))
+      .replaceAll(", ", "")
+      .replaceAll("[0-9]", "");
+    loc = loc
+        .substring(0, Math.min(loc.length(), 8))
+        .trim();
+    mLocation = loc;
     OPR = pOpr;
     DPR = pDpr;
     CCWM = pOpr - pDpr;
+    EVENT = pCalc.mEvent;
   }
   
-  private static DecimalFormat nf = new DecimalFormat("0.0");
+  private TeamStat(Integer pTeam, Map<Breakdown2017, Double> pStats, Double pOpr, Double pCCWM, String pLoc, String pEvent) {
+    mTeam = pTeam;
+    mStats.putAll(pStats);
+    OPR = pOpr;
+    CCWM = pCCWM;
+    DPR = OPR - CCWM;
+    mLocation = pLoc;
+    EVENT = pEvent;
+  }
+  
+  private static DecimalFormat nf = new DecimalFormat("0.00");
   
   /**
    * @return String that represents the headers of row outputs
    */
   public static String getHeader() {
-    return "TEAM\tOPR\tCCWM\tVALUE\tAUTOR1\tAMOVE\tROTOR2\tROTOR3\tROTOR4\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\t4ROTB%";
+    return "TEAM\tOPR\tCCWM"
+      + "\tVALUE\tAUTOR1\tAMOVE\tROTOR2\tROTOR3\tROTOR4"
+      + "\tTOTGRS"
+      + "\tCLIMB\tAFUEL\tTFUEL\tKPABONUS\tLOC\tEVENT"
+      ;
   }
-  private static char SEP = '\t';
+  
+  public double getNumGears() {
+    double autogears = get(rotor1Auto);
+    double teleopgears = get(rotor2Engaged) *2d + get(rotor3Engaged) * 4d + get(rotor4Engaged) * 6d - autogears;
+    double numgears = autogears + teleopgears;
+    return numgears;
+  }
+  
+  public boolean contains(Breakdown2017 pStat) {
+    return mStats.containsKey(pStat);
+  }
+  
+  private static String SEP = "\t";
   public String toString(){ 
+    
     StringBuilder sb = new StringBuilder();
     sb.append(mTeam)
       .append(SEP).append(nf.format(OPR))
@@ -64,13 +107,38 @@ public class TeamStat {
       .append(SEP).append(nf.format(get(rotor2Engaged)))
       .append(SEP).append(nf.format(get(rotor3Engaged)))
       .append(SEP).append(nf.format(get(rotor4Engaged)))
+      .append(SEP).append(nf.format(getNumGears()))
       .append(SEP).append(nf.format(get(teleopTakeoffPoints)))
       .append(SEP).append(nf.format(get(autoFuelPoints)))
       .append(SEP).append(nf.format(get(teleopFuelPoints)))
       .append(SEP).append(nf.format(get(kPaRankingPointAchieved)))
-      .append(SEP).append(nf.format(get(rotorRankingPointAchieved)))
+      .append(SEP).append(mLocation)
+      .append(SEP).append(EVENT)
     ;
     return sb.toString();
+  }
+  
+  public static TeamStat fromString(String pLine) {
+    Map<Breakdown2017, Double> values = new HashMap<>();
+    StringTokenizer st = new StringTokenizer(pLine, SEP);
+    Integer team = Integer.parseInt(st.nextToken());
+    Double opr = Double.parseDouble(st.nextToken());
+    Double ccwm = Double.parseDouble(st.nextToken());
+    Double addedValue = Double.parseDouble(st.nextToken());
+    values.put(rotor1Auto, Double.parseDouble(st.nextToken()));
+    values.put(autoMobilityPoints, Double.parseDouble(st.nextToken()));
+    values.put(rotor2Engaged, Double.parseDouble(st.nextToken()));
+    values.put(rotor3Engaged, Double.parseDouble(st.nextToken()));
+    values.put(rotor4Engaged, Double.parseDouble(st.nextToken()));
+    Double numGears = Double.parseDouble(st.nextToken());
+    values.put(teleopTakeoffPoints, Double.parseDouble(st.nextToken()));
+    values.put(autoFuelPoints, Double.parseDouble(st.nextToken()));
+    values.put(teleopFuelPoints, Double.parseDouble(st.nextToken()));
+    values.put(kPaRankingPointAchieved, Double.parseDouble(st.nextToken()));
+    String loc = st.nextToken();
+    String event = st.nextToken();
+
+    return new TeamStat(team, values, opr, ccwm, loc, event);
   }
   
   /**
@@ -88,11 +156,18 @@ public class TeamStat {
    * @return this team's value, as calculated by the component breakdowns
    */
   public Double getAddedValue() {
-    Double result = 0d;
-    for(Breakdown2017 stat : CalculatedValues) {
-      result += get(stat);
-    }
-    result += Breakdown2017.rotor1Engaged.getStaticValue()/3d;
+    Double result = 13.3d;
+//    for(Breakdown2017 stat : CalculatedValues) {
+//      result += get(stat);
+//    }
+    result += get(rotor1Auto) * 20d;
+    result += get(autoMobilityPoints) * 5d;
+    result += get(rotor2Engaged) * 40d;
+    result += get(rotor3Engaged) * 40d;
+    result += get(rotor4Engaged) * 40d;
+    result += get(teleopTakeoffPoints) * 50d;
+    result += get(autoFuelPoints);
+    result += get(teleopFuelPoints);
     return result;
   }
   
@@ -126,5 +201,9 @@ public class TeamStat {
    */
   public double getAnti(Breakdown2017 pStat) {
     return mAntiStats.get(pStat);
+  }
+  
+  public void mod(Breakdown2017 pStat, Double pMult) {
+    mStats.put(pStat, mStats.get(pStat) * pMult);
   }
 }

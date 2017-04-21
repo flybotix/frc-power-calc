@@ -2,9 +2,12 @@ package us.frc.predictions;
 
 import static us.frc.predictions.Breakdown2017.rotor1Auto;
 import static us.frc.predictions.Breakdown2017.rotor2Auto;
+import static us.frc.predictions.Breakdown2017.autoRotorPoints;
 import static us.frc.predictions.Breakdown2017.rotor2Engaged;
 import static us.frc.predictions.Breakdown2017.rotor3Engaged;
 import static us.frc.predictions.Breakdown2017.rotor4Engaged;
+import static us.frc.predictions.Breakdown2017.teleopTakeoffPoints;
+import static us.frc.predictions.Breakdown2017.autoMobilityPoints;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,13 +18,14 @@ import java.util.Map;
 import java.util.StringTokenizer;
 
 public class SchedulePredictor {
-  // Teams & field elements get better as time goes on.  How much better?
-  static double GEAR_MULTIPLIER = 1.1;
-  static double FUEL_MULTIPLIER = 1.1;
-  
-  
   private final Map<Integer, Team> mTeams = new HashMap<>();
   private final List<Match> mMatches = new ArrayList<>();
+  public static final double GEAR_STD_DEV = 1.2d;
+  public static final double MIN_GEAR_4ROTOR_THRESHOLD = 9d;
+  
+  public static void main(String[] pArgs) {
+    
+  }
   
   public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule) {
     // Randomize known schedule by randomizing the team list and assigning teams to the index values
@@ -49,50 +53,54 @@ public class SchedulePredictor {
     }
   }
   public static EnumSet<Breakdown2017> CappedOPR = EnumSet.of(
-    rotor1Auto, rotor2Auto,
-    rotor2Engaged, rotor3Engaged
+    rotor1Auto, rotor2Auto, autoRotorPoints, autoMobilityPoints,
+    rotor2Engaged, rotor3Engaged, rotor4Engaged, teleopTakeoffPoints
   );
   
   /**
    * Clamps, normalizes, and otherwise cleans up the stats so they make sense for 'added value'.
    */
-  static void normalize(Map<Integer, TeamStat> allEventStats) {
+  static void normalize(Map<Integer, TeamStat> allEventStats, boolean pRollup) {
     for(Integer team : allEventStats.keySet()) {
       TeamStat ts = allEventStats.get(team);
+      
+      // Floor of 0
       for(Breakdown2017 stat : TeamStat.CalculatedValues) {
-        if(stat != rotor3Engaged && stat != rotor2Engaged) {
-          // Max is the static value / 3.  As more teams do a task, 
-          // OPR of that task -> [Value] / 3
-          // Only applicable to cooperative tasks that have non-linear values
-          double staticvalue = (CappedOPR.contains(stat) ? 1d/3d : 1) * stat.getStaticValue();
-          
-          double v = Math.min(staticvalue, Math.max(0d, ts.get(stat)));
-          
-          // Hard to tell exactly which teams score "1 point every other match" vs a team that gets lucky.
-          // This is important for 2017, because it is the tie-breaker in a lot of matches.
-          if(stat == Breakdown2017.autoFuelPoints || stat == Breakdown2017.teleopFuelPoints) {
-         // 0.3333 OPR = 1 point each match.  Thus less than 1 point each match: probably didn't do fuel
-            if(v < 0.3d) { 
-              v = 0d;
-            }
-          }
-          ts.override(stat, v);
-        }
+        double v = ts.get(stat);
+        v = Math.max(v, 0d);
+        ts.override(stat, v);
+      }
+      
+      // Deal with roll up of rotors
+      if(pRollup) {
+        String trun = Double.toString(rotor2Engaged.getStaticValue());
+        trun = trun.substring(0, trun.indexOf(".") + 2);
+        double staticvalue = Double.parseDouble(trun);
+  
+        // Roll up rotors 2 & 3
+        double value2 = Math.max(0d, ts.get(rotor2Engaged));
+        double extra2 = Math.max(0d, value2 - staticvalue);
+        ts.override(rotor2Engaged, Math.min(staticvalue, value2));
+        //Repeat for 3
+        double value3 = Math.max(0d, ts.get(rotor3Engaged) + extra2);
+        double extra3 = Math.max(0d, value3 - staticvalue);
+        ts.override(rotor3Engaged, Math.min(staticvalue, value3));
+        
+        // Add extra3 for rotor 4
+        double value4 = Math.max(0d, ts.get(rotor4Engaged) + extra3);
+        ts.override(rotor4Engaged, value4);
       }
 
-      // Roll up rotors 2 & 3
-      double staticvalue = rotor2Engaged.getStaticValue() /3d;
-      double value2 = Math.max(0d, ts.get(rotor2Engaged));
-      double extra2 = Math.max(0d, value2 - staticvalue);
-      ts.override(rotor2Engaged, Math.min(staticvalue, value2));
-      //Repeat for 3
-      double value3 = Math.max(0d, ts.get(rotor3Engaged) + extra2);
-      double extra3 = Math.max(0d, value3 - staticvalue);
-      ts.override(rotor3Engaged, Math.min(staticvalue, value3));
-      
-      // Add extra3 for rotor 4
-      double value4 = Math.max(0d, ts.get(rotor4Engaged) + extra3);
-      ts.override(rotor4Engaged, value4);
+      // Ceiling of static value
+      for(Breakdown2017 stat : TeamStat.CalculatedValues) {
+        double v = ts.get(stat);
+        if(CappedOPR.contains(stat)) {
+          v = Math.min(v, 1d);
+        } else {
+          v = Math.min(v, stat.getStaticValue());
+        }
+        ts.override(stat, v);
+      }
     }
     
   }
@@ -185,9 +193,9 @@ public class SchedulePredictor {
     }
   }
   
-  static int NUM_KPA_RP = 0;
-  static int NUM_ROTOR_RP = 0;
-  static int NUM_TIES = 0;
+  public int NUM_KPA_RP = 0;
+  public int NUM_ROTOR_RP = 0;
+  public int NUM_TIES = 0;
   
   private class Alliance {
     List<Team> teams = new ArrayList<>();
@@ -195,6 +203,7 @@ public class SchedulePredictor {
     private Integer mRotorRP = 0;
     private Integer mFuelRP = 0;
     private boolean mAutonGear = false;
+    private boolean mAuton2Gear = false;
     int mFuelScore = 0;
     
     public Alliance(Integer... pTeams) {
@@ -212,8 +221,8 @@ public class SchedulePredictor {
       for(Breakdown2017 stat : TeamStat.CalculatedValues) {
         switch(stat) {
         case autoMobilityPoints:
-          int num = (int)(Math.round(teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get())/5d);
-          value += num * stat.getStaticValue();
+          int num = (int)(Math.round(teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()));
+          value += num * autoMobilityPoints.getStaticValue();
           break;
         
         // Individual linear values are already determined in OPR
@@ -221,54 +230,38 @@ public class SchedulePredictor {
         case teleopFuelPoints: 
           // We assume we've (mostly) filtered out non-fuel teams here.
           // Seems to be inline with what 1262, 346, & 836 did in their last few matches
-          fuel += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get()*FUEL_MULTIPLIER;
+          fuel += teams.stream().map(t -> t.stats.get(stat)).reduce(Double::sum).get();
           break;
           
         // Alliance-cooperative static scores
         case rotor1Auto: 
+          double p_A1rotor = teams.stream()
+            .map(t -> t.stats.get(stat)) // divide OPR by max to get probability
+            .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
+          mAutonGear |= !(Math.random() > p_A1rotor);
+          value += mAutonGear ? 0 : autoRotorPoints.getStaticValue();
+        break;
         case rotor2Auto:
           // Max probability or value of alliance
           // OPR-capped, so mult by 3
-          double p_Arotor = teams.stream()
-            .map(t -> t.stats.get(stat)*3 / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
-            .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
-          mAutonGear |= !(Math.random() > p_Arotor);
-          value += mAutonGear ? 0 : stat.getStaticValue();
-          break;
-          
-        case rotor2Engaged:
-        case rotor3Engaged:
-          // Max probability or value of alliance
-          // OPR-capped, so mult by 3
-          double p_Trotor = teams.stream()
-            .map(t -> t.stats.get(stat)*3 / stat.getStaticValue() * GEAR_MULTIPLIER) // divide OPR by max to get probability
-            .reduce(Double::max).get(); // max engagement for the alliance, since it's individual effort
-          value += Math.random() > p_Trotor ? 0 : stat.getStaticValue();
+          double p_A2rotor = teams.stream()
+            .map(t -> t.stats.get(rotor1Auto)) // divide OPR by max to get probability
+            .reduce(Double::sum).get(); // sum rotor 1 engagement for the alliance, since rotor 2 is combined
+          mAuton2Gear |= !(Math.random()*teams.size() > p_A2rotor);
+          value += mAuton2Gear ? 0 : autoRotorPoints.getStaticValue();
           break;
           
         case teleopTakeoffPoints:
           value += teams.stream()
-            .map(t -> t.stats.get(stat) / stat.getStaticValue()) // OPR Value - calculate individual probability
-            .map(p_takeoff -> Math.random() > p_takeoff ? 0 : stat.getStaticValue()) // Calculate value based upon yes/no
+            .map(t -> t.stats.get(stat)) // OPR Value - calculate individual probability
+            .map(p_takeoff -> Math.random() > p_takeoff ? 0 : teleopTakeoffPoints.getStaticValue()) // Calculate value based upon yes/no
             .reduce(Double::sum).get(); // Max individual values
           break;
           
-
-        // The parsing of TBA set these as the bonus values, not true/false.  So
-        // the probability of achievement is based upon opr value, not true/false.
-//        case rotorRankingPointAchieved:
-        case rotor4Engaged:
-          // Rotor 4 is an average of rotor4Engaged OPR's.  So SUM then divide by 3.
-          Double p_4rotor = teams.stream()
-             .map(t -> t.stats.get(stat) / stat.getStaticValue()) // divide OPR by max to get probability
-             .reduce(Double::sum).get() / (double)teams.size(); // avg engagement for the alliance
-          mRotorRP = Math.random() > p_4rotor ? 0 : 1;
-          value += mRotorRP * stat.getStaticValue();
-          
         case kPaRankingPointAchieved:
           Double p_kpaBonus = teams.stream()
-            .map(t -> t.stats.get(stat) / stat.getStaticValue()*3*FUEL_MULTIPLIER)
-            .reduce(Double::sum).get()*FUEL_MULTIPLIER;
+            .map(t -> t.stats.get(stat))
+            .reduce(Double::sum).get();
           mFuelRP = Math.random() >= p_kpaBonus ? 0 : 1;
           break;
         default:
@@ -284,6 +277,34 @@ public class SchedulePredictor {
           mFuelScore = (int)Math.floor(fuel);
         }
       }
+      
+      double numGears = teams.stream()
+        .map(team -> team.stats.getNumGears())
+        // Randomly add +/- 1 standard deviation of gears for each team
+        .map(gears -> gears + GEAR_STD_DEV * Math.random() * (Math.random() > 0.5d ? 1d : 1d))
+        .map(sum -> Math.max(0d, sum))
+        .reduce(Double::sum)
+        .get();
+      
+      double g = 0d;
+      if(numGears >= 2d) g += 40d;
+      if(numGears >= 6d) {
+        g += 40d;
+      } else if (numGears >= 2d) {
+        double p_3r = (6d - numGears) / 4d;
+        g += (Math.random() > p_3r ? 0 : 1) * 40d;
+      }
+      if(numGears >= 12d) {
+        g += 40d;
+      } else if(numGears >= MIN_GEAR_4ROTOR_THRESHOLD) {
+        double p_4r = (12d - numGears) / 6d;
+        mRotorRP = Math.random() > p_4r ? 0 : 1;
+//        if(mRotorRP > 0) {
+//          System.out.println(teams + " got 4 rotors with " + numGears + " gears");
+//        }
+        g += mRotorRP * 40d;
+      }
+      value += g;
 
       value += mFuelScore;
       

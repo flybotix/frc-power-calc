@@ -25,39 +25,47 @@ public class TBACalc {
   private double[][] matrix, scores;
   private RealMatrix finalMatrix;
   private CholeskyDecomposition cholesky;
-  public final boolean isValid;
+  public boolean isValid;
+  public final String mEvent;
 
   public TBACalc(String eventKey, Boolean qualsOnly) {
+    mEvent = eventKey;
     eventMatches = api.getEventMatches(eventKey);
     if(eventMatches.isEmpty()){
       isValid = false;
       return;
-    } else {
-      isValid = true;
+    }
+    try {
+      for (Match m : eventMatches) {
+        for (String t : m.getAlliances().getRed().getTeams())
+          if (!teams.contains(Integer.parseInt(t.substring(3))))
+            teams.add(Integer.parseInt(t.substring(3)));
+  
+        for (String t : m.getAlliances().getBlue().getTeams())
+          if (!teams.contains(Integer.parseInt(t.substring(3))))
+            teams.add(Integer.parseInt(t.substring(3)));
+      }
+  
+      int i = 0;
+      for (Integer t : teams) {
+        teamKeyPositionMap.put("frc" + t, i);
+        i++;
+      }
+  
+      matrix = new double[teams.size()][teams.size()];
+      scores = new double[teams.size()][1];
+  
+      this.eventKey = eventKey;
+      cleanup();
+      reInit(qualsOnly);
+    } catch (Exception e) {
+      System.err.println("Error when handling event: " + mEvent);
+      e.printStackTrace();
+      isValid = false;
     }
 
-    for (Match m : eventMatches) {
-      for (String t : m.getAlliances().getRed().getTeams())
-        if (!teams.contains(Integer.parseInt(t.substring(3))))
-          teams.add(Integer.parseInt(t.substring(3)));
-
-      for (String t : m.getAlliances().getBlue().getTeams())
-        if (!teams.contains(Integer.parseInt(t.substring(3))))
-          teams.add(Integer.parseInt(t.substring(3)));
-    }
-
-    int i = 0;
-    for (Integer t : teams) {
-      teamKeyPositionMap.put("frc" + t, i);
-      i++;
-    }
-
-    matrix = new double[teams.size()][teams.size()];
-    scores = new double[teams.size()][1];
-
-    this.eventKey = eventKey;
-    cleanup();
-    reInit(qualsOnly);
+    isValid = true;
+//    System.out.println("Finished event init");
     // TODO - put this in a logging output on a display so we can easily update it
     // year-to-year
 //    System.out.println("Score Breakdown:");
@@ -75,6 +83,9 @@ public class TBACalc {
       cleanup();
 
       Map<Integer, Double> returnedMap = new HashMap<>();
+//      if(isValid == false) {
+//        return returnedMap;
+//      }
 
         for (Match m : eventMatches) {
           if (!m.getCompLevel().equals("qm") && qualsOnly)
@@ -108,6 +119,7 @@ public class TBACalc {
               }
             }
           } catch (Exception e) {
+            System.err.println("Error when calculating OPR " + key + " for event " + mEvent);
             // I mean .. what can we do with bad TBA data but toss it?
           }
         }
