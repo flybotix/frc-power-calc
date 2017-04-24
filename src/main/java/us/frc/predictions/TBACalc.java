@@ -75,25 +75,31 @@ public class TBACalc {
 //      .getBlue()
 //      .keySet()
 //      .toArray(new String[0])));
+//    System.exit(0);
   }
 
   // TODO - Cleanup the brackets so it's easier to read
   public Map<Integer, Double> getForKey(String key, boolean anti) {
     synchronized (this) {
       cleanup();
+      
+      if(key.equalsIgnoreCase(Breakdown2017.teleopTakeoffPoints.name())) {
+        return getClimbs();
+      }
 
       Map<Integer, Double> returnedMap = new HashMap<>();
 //      if(isValid == false) {
 //        return returnedMap;
 //      }
 
-        for (Match m : eventMatches) {
-          if (!m.getCompLevel().equals("qm") && qualsOnly)
-            continue;
-          Alliance blue = m.getAlliances().getBlue();
-          Alliance red = m.getAlliances().getRed();
-          try {
-          for (String team : blue.getTeams())
+      for (Match m : eventMatches) {
+        if (!m.getCompLevel().equals("qm") && qualsOnly) {
+          continue;
+        }
+        Alliance blue = m.getAlliances().getBlue();
+        Alliance red = m.getAlliances().getRed();
+        try {
+          for (String team : blue.getTeams()) {
             if (key.equalsIgnoreCase("opr")) {
               scores[teamKeyPositionMap.get(team)][0] += blue.getScore();
             } else if (key.equalsIgnoreCase("dpr")) {
@@ -106,7 +112,8 @@ public class TBACalc {
                 scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getBlue().get(key));
               }
             }
-          for (String team : red.getTeams())
+          }
+          for (String team : red.getTeams()) {
             if (key.equalsIgnoreCase("opr"))
               scores[teamKeyPositionMap.get(team)][0] += red.getScore();
             else if (key.equalsIgnoreCase("dpr")) {
@@ -118,11 +125,12 @@ public class TBACalc {
                 scores[teamKeyPositionMap.get(team)][0] += Breakdown2017.valueOf(key).map(m.getScoreBreakdown().getRed().get(key));
               }
             }
-          } catch (Exception e) {
-            System.err.println("Error when calculating OPR " + key + " for event " + mEvent);
-            // I mean .. what can we do with bad TBA data but toss it?
           }
+        } catch (Exception e) {
+          System.err.println("Error when calculating OPR " + key + " for event " + mEvent);
+          // I mean .. what can we do with bad TBA data but toss it?
         }
+      }
 
       RealMatrix scoreMatrix = MatrixUtils.createRealMatrix(scores);
       double[][] output = cholesky.getSolver().solve(scoreMatrix).getData();
@@ -133,6 +141,50 @@ public class TBACalc {
 
       return returnedMap;
     }
+  }
+  private static final String[] CLIMB_KEYS = new String[]{
+    Breakdown2017.touchpadFar.name(), 
+    Breakdown2017.touchpadMiddle.name(),
+    Breakdown2017.touchpadNear.name()
+  };
+  
+  private Map<Integer, Double> getClimbs() {
+    Map<Integer, Average> avgs = new HashMap<>();
+    for (Match m : eventMatches) {
+      if (!m.getCompLevel().equals("qm") && qualsOnly) {
+        continue;
+      }
+      Alliance blue = m.getAlliances().getBlue();
+//      System.out.println(m.getMatchNumber() + "\tBLUE\t" + Arrays.toString(blue.getTeams()));
+      for(int t = 0; t < blue.getTeams().length; t++) {
+        Integer team = Integer.parseInt(blue.getTeams()[t].replace("frc", ""));
+//        System.out.println(team + "\t" + m.getScoreBreakdown().getBlue().get(CLIMB_KEYS[t]));
+        Average a = avgs.get(team);
+        if(a == null) { a = new Average(); avgs.put(team, a); }
+        String key = CLIMB_KEYS[t];
+        Breakdown2017 stat = Breakdown2017.valueOf(key);
+        a.add(stat.map(m.getScoreBreakdown().getBlue().get(key)));
+      }
+      
+      
+      Alliance red = m.getAlliances().getRed();
+//      System.out.println(m.getMatchNumber() + "\tRED\t" + Arrays.toString(red.getTeams()));
+      for(int t = 0; t < red.getTeams().length; t++) {
+        Integer team = Integer.parseInt(red.getTeams()[t].replace("frc", ""));
+//        System.out.println(team + "\t" + m.getScoreBreakdown().getRed().get(CLIMB_KEYS[CLIMB_KEYS.length - 1 - t]));
+        Average a = avgs.get(team);
+        if(a == null) { a = new Average(); avgs.put(team, a); }
+        String key = CLIMB_KEYS[CLIMB_KEYS.length - 1 - t]; // reverse for red due to mirrored field
+        Breakdown2017 stat = Breakdown2017.valueOf(key);
+        a.add(stat.map(m.getScoreBreakdown().getBlue().get(key)));
+      }
+    }
+    
+    Map<Integer, Double> result = new HashMap<>();
+    for(Integer team : avgs.keySet()) {
+      result.put(team, avgs.get(team).getAverage());
+    }
+    return result;
   }
 
   public Map<Integer, Double> getForKey(String key) {

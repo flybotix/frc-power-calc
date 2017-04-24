@@ -27,31 +27,52 @@ public class SchedulePredictor {
     
   }
   
-  public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule) {
-    // Randomize known schedule by randomizing the team list and assigning teams to the index values
-    // in the schedule
-    List<Integer> random = new ArrayList<>(pTeams);
-    Collections.shuffle(random);
-    random.forEach(team -> mTeams.put(team, new Team(team, pStats.get(team))));
+  public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule, boolean pRandomizedSchedule) {
+    pTeams.forEach(team -> mTeams.put(team, new Team(team, pStats.get(team))));
     
-    // Assign schedule & calculate score
-    for(int i = 0; i < pSchedule.length; i++) {  // 2 empty lines at end of some generated outputs
-      if(pSchedule[i] != null && pSchedule[i].length() > 0) {
-        StringTokenizer st = new StringTokenizer(pSchedule[i], " ");
-        Alliance red = new Alliance(
-          random.get(Integer.parseInt(st.nextToken())-1), 
-          random.get(Integer.parseInt(st.nextToken())-1), 
-          random.get(Integer.parseInt(st.nextToken())-1));
-        Alliance blue = new Alliance(
-          random.get(Integer.parseInt(st.nextToken())-1), 
-          random.get(Integer.parseInt(st.nextToken())-1), 
-          random.get(Integer.parseInt(st.nextToken())-1));
-        Match match = new Match(i+1, red, blue);
-        match.calcScore();
-        mMatches.add(match);
+    if(pRandomizedSchedule) {
+      // Assign schedule & calculate score
+      for(int i = 0; i < pSchedule.length; i++) {  // 2 empty lines at end of some generated outputs
+        if(pSchedule[i] != null && pSchedule[i].length() > 0) {
+          StringTokenizer st = new StringTokenizer(pSchedule[i], " ");
+          Alliance red = new Alliance(
+            pTeams.get(Integer.parseInt(st.nextToken())-1), 
+            pTeams.get(Integer.parseInt(st.nextToken())-1), 
+            pTeams.get(Integer.parseInt(st.nextToken())-1));
+          Alliance blue = new Alliance(
+            pTeams.get(Integer.parseInt(st.nextToken())-1), 
+            pTeams.get(Integer.parseInt(st.nextToken())-1), 
+            pTeams.get(Integer.parseInt(st.nextToken())-1));
+          Match match = new Match(i+1, red, blue);
+          match.calcScore();
+          mMatches.add(match);
+        }
+      }
+    } else {
+      // Assign schedule & calculate score
+      for(int i = 0; i < pSchedule.length; i++) {  // 2 empty lines at end of some generated outputs
+        if(pSchedule[i] != null && pSchedule[i].length() > 0) {
+          StringTokenizer st = new StringTokenizer(pSchedule[i], " ");
+          Alliance red = new Alliance(
+            Integer.parseInt(st.nextToken()), 
+            Integer.parseInt(st.nextToken()), 
+            Integer.parseInt(st.nextToken()));
+          Alliance blue = new Alliance(
+            Integer.parseInt(st.nextToken()), 
+            Integer.parseInt(st.nextToken()), 
+            Integer.parseInt(st.nextToken()));
+          Match match = new Match(i+1, red, blue);
+          match.calcScore();
+          mMatches.add(match);
+        }
       }
     }
   }
+  
+  public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule) {
+    this(pTeams, pStats, pSchedule, true);
+  }
+  
   public static EnumSet<Breakdown2017> CappedOPR = EnumSet.of(
     rotor1Auto, rotor2Auto, autoRotorPoints, autoMobilityPoints,
     rotor2Engaged, rotor3Engaged, rotor4Engaged, teleopTakeoffPoints

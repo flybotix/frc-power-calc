@@ -2,7 +2,6 @@ package us.frc.predictions;
 
 import static us.frc.predictions.Breakdown2017.autoFuelPoints;
 import static us.frc.predictions.Breakdown2017.autoMobilityPoints;
-import static us.frc.predictions.Breakdown2017.autoRotorPoints;
 import static us.frc.predictions.Breakdown2017.kPaRankingPointAchieved;
 import static us.frc.predictions.Breakdown2017.rotor1Auto;
 import static us.frc.predictions.Breakdown2017.rotor2Auto;
@@ -185,6 +184,9 @@ public class TeamStat {
    * Get a stat's value
    */
   public double get(Breakdown2017 pStat) {
+    // WARNING - this is effectively casting a Double to a double (a.k.a. auto-boxing).
+    // if there is a null pointer exception on this line then it means the map doesn't
+    // contain a value for pStat, which is likely due to an improper mapping or logic somewhere.
     return mStats.get(pStat);
   }
   

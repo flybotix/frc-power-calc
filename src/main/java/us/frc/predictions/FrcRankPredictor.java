@@ -2,6 +2,7 @@ package us.frc.predictions;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -9,6 +10,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
+import com.vegetarianbaconite.blueapi.beans.Match;
 
 public class FrcRankPredictor {
 //   TODO - Config display
@@ -26,17 +29,24 @@ public class FrcRankPredictor {
 
 
   // TODO - Config display
-  private static final double NUM_SCHEDULES_TO_PREDICT = 10000;
+  private static final double NUM_SCHEDULES_TO_PREDICT = 1000;
+  private static final boolean RANDOM_SCHEDULES = true;
   
   public static void main(String... args) {
     
     for(String e : EventStats.STL) {
     
       Map<Integer, TeamStat> allEventStats = Utils.getStatsForTeamsAttending(e, true, true);
-      System.out.println("Retrieved " + allEventStats.size() + " team stats");
+      System.out.println("Retrieved " + allEventStats.size() + " team stats for " + e);
   
-      String[] schedule = ScheduleGenerator.getScheduleForTeams(allEventStats.size(), 10);
-      System.out.println("Finished retrieving randomized schedule with " + schedule.length + " matches for " + allEventStats.size() + " teams");
+      String[] schedule;
+      if(RANDOM_SCHEDULES) {
+        schedule = ScheduleGenerator.getScheduleForTeams(allEventStats.size(), 10);
+        System.out.println("Finished retrieving randomized schedule with " + schedule.length + " matches for " + allEventStats.size() + " teams");
+      } else {
+        schedule = Utils.getScheduleForEvent(e);
+        System.out.println("Finished retrieving schedule with " + schedule.length + " matches for " + e);
+      }
       
       // Init the rank averages array that stores each sim's rank for a team
       Map<Integer, List<Integer>> rankAverages = new HashMap<>();
@@ -57,7 +67,13 @@ public class FrcRankPredictor {
       System.out.println("Performing " + NUM_SCHEDULES_TO_PREDICT + " simulations...");
       for(int i = 0; i < NUM_SCHEDULES_TO_PREDICT; i++) {
   //      System.out.println("Prediction schedule " + i);
-        SchedulePredictor sp = new SchedulePredictor(new ArrayList<>(allEventStats.keySet()), allEventStats, schedule);
+        // Randomize known schedule by randomizing the team list and assigning teams to the index values
+        // in the schedule
+        List<Integer> random = new ArrayList<>(allEventStats.keySet());
+        if(RANDOM_SCHEDULES) {
+          Collections.shuffle(random);
+        }
+        SchedulePredictor sp = new SchedulePredictor(random, allEventStats, schedule, RANDOM_SCHEDULES);
         // TODO - JavaFX Match display
         for(SchedulePredictor.Match m : sp.getMatches()) {
           allsimscores += m.getTotalScore();

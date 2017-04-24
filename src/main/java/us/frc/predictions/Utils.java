@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.vegetarianbaconite.blueapi.beans.Event;
+import com.vegetarianbaconite.blueapi.beans.Match;
 
 public class Utils {
   
@@ -71,10 +72,6 @@ public class Utils {
       LinkedList<String> priorEvents = Utils.getEventsForTeams(teamsToRecalculate, pEvents);
       System.out.println("Found " + priorEvents + " prior events to process as the teams' \"latest\" events.");
       Map<Integer, TeamStat> allEventStats = Utils.generateTeamStats(priorEvents);
-      // tmp hack to see about lvls of improvement
-      if(allEventStats.containsKey(1885)) {
-        allEventStats.get(1885).mod(Breakdown2017.rotor4Engaged, 2d);
-      }
   
       List<Integer> toRemove = new ArrayList<>();
       for(Integer team : allEventStats.keySet()) {
@@ -104,6 +101,25 @@ public class Utils {
     
   }
   
+  public static String[] getScheduleForEvent(String pEvent) {
+    List<Match> matches = TBACalc.api.getEventMatches(pEvent).stream()
+      .filter(m -> m.getCompLevel().equals("qm"))
+      .collect(Collectors.toList());
+    String[] schedule = new String[matches.size()];
+    for(Match m : matches) {
+      int index = m.getMatchNumber() - 1;
+      String red = Arrays.toString(m.getAlliances().getRed().getTeams());
+      String blue = Arrays.toString(m.getAlliances().getBlue().getTeams());
+      schedule[index] = (red + " " + blue)
+        .replaceAll("frc", "")
+        .replaceAll(",", "")
+        .replaceAll("\\[", "")
+        .replaceAll("\\]", "")
+        .trim();
+    }
+    return schedule;
+  }
+  
   public static Map<Integer, TeamStat> getStatsForTeamsAttending(String pEvent, boolean pRollupRotors, boolean pPrint) {
     return getStatsForTeamsAttendingMulti(pRollupRotors, pPrint, pEvent);
   }
@@ -123,7 +139,8 @@ public class Utils {
   
   // For events like einstein and micmp which are just playoff tournaments
   private static final String[] sINVALID_EVENTS = new String[]{
-    "2017micmp",
+    "2017cmptx", // Houston final field
+    "2017micmp", // MSC final field
     "2017ctss" // Week 0 scrimmage
   };
   
