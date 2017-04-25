@@ -7,12 +7,14 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.StringTokenizer;
 import java.util.stream.Collectors;
 
 import com.vegetarianbaconite.blueapi.beans.Event;
@@ -37,6 +39,15 @@ public class Utils {
   }
   return allEventStats;
     
+  }
+  
+  public static <T> String convertToTabbedString(Collection<T> coll) {
+    return coll.toString()
+      .replaceAll("\\[", "")
+      .replaceAll("\\]", "")
+      .replaceAll(",", "")
+      .replaceAll(" ", "\t")
+      ;
   }
   
   public static void print(List<Integer> pTeams, Map<Integer, TeamStat> pStats) {
@@ -100,22 +111,47 @@ public class Utils {
     return results;
     
   }
-  
-  public static String[] getScheduleForEvent(String pEvent) {
+
+
+  private static final String PRELIM_SCHED_PATH = "data" + File.separator + "prelim";
+  private static final String PRELIM_SCHED_FILE_EXT = ".txt";
+  public static String[] getQualScheduleForEvent(String pEvent) {
     List<Match> matches = TBACalc.api.getEventMatches(pEvent).stream()
       .filter(m -> m.getCompLevel().equals("qm"))
       .collect(Collectors.toList());
-    String[] schedule = new String[matches.size()];
-    for(Match m : matches) {
-      int index = m.getMatchNumber() - 1;
-      String red = Arrays.toString(m.getAlliances().getRed().getTeams());
-      String blue = Arrays.toString(m.getAlliances().getBlue().getTeams());
-      schedule[index] = (red + " " + blue)
-        .replaceAll("frc", "")
-        .replaceAll(",", "")
-        .replaceAll("\\[", "")
-        .replaceAll("\\]", "")
-        .trim();
+    String[] schedule = new String[0];
+    if(matches.isEmpty()) {
+      // Attempt to pull preliminary from a file
+      File f = new File(PRELIM_SCHED_PATH, pEvent + PRELIM_SCHED_FILE_EXT);
+      if(f.exists()) {
+        try {
+          List<String> lines = Files.readAllLines(f.toPath());
+          schedule = new String[lines.size()];
+          // Format copied from PDF is #, [Blue alliance], [Red alliance]
+          for(String match : lines) {
+            StringTokenizer st = new StringTokenizer(match, " ");
+            int index = Integer.parseInt(st.nextToken()) - 1;
+            String blue = st.nextToken() + " " + st.nextToken() + " " + st.nextToken();
+            String red = st.nextToken() + " " + st.nextToken() + " " + st.nextToken();
+            schedule[index] = red + " " + blue;
+          }
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
+    } else {
+      schedule = new String[matches.size()];
+      for(Match m : matches) {
+        int index = m.getMatchNumber() - 1;
+        String red = Arrays.toString(m.getAlliances().getRed().getTeams());
+        String blue = Arrays.toString(m.getAlliances().getBlue().getTeams());
+        schedule[index] = (red + " " + blue)
+          .replaceAll("frc", "")
+          .replaceAll(",", "")
+          .replaceAll("\\[", "")
+          .replaceAll("\\]", "")
+          .trim();
+      }
     }
     return schedule;
   }

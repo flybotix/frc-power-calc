@@ -9,6 +9,7 @@ import static us.frc.predictions.Breakdown2017.rotor4Engaged;
 import static us.frc.predictions.Breakdown2017.teleopTakeoffPoints;
 import static us.frc.predictions.Breakdown2017.autoMobilityPoints;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -16,15 +17,111 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
+import java.util.stream.Collectors;
+
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 public class SchedulePredictor {
   private final Map<Integer, Team> mTeams = new HashMap<>();
   private final List<Match> mMatches = new ArrayList<>();
   public static final double GEAR_STD_DEV = 1.2d;
+  public static final double FUEL_STD_DEV = 10d;
   public static final double MIN_GEAR_4ROTOR_THRESHOLD = 9d;
+
+  static final DecimalFormat nf = new DecimalFormat("0");
+  static final DecimalFormat pf = new DecimalFormat("0.0%");
   
   public static void main(String[] pArgs) {
-    
+    for(String event : EventStats.STL) {
+      String[] schedule = Utils.getQualScheduleForEvent(event);
+      List<Integer> teams = Utils.getTeamsForEvent(event);
+      Map<Integer, TeamStat> stats = Utils.getStatsForTeamsAttending(event, true, false);
+      SchedulePredictor sp = new SchedulePredictor(teams, stats, schedule, false);
+      
+      Map<Integer, DescriptiveStatistics> redscores = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_RedAutonRotor = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_Red4Rotors = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_Red40kpa = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> P_RedWin = new HashMap<>();
+      
+      Map<Integer, DescriptiveStatistics> bluescores = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_BlueAutonRotor = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_Blue4Rotors = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> p_Blue40kpa = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> P_BlueWin = new HashMap<>();
+      
+      Map<Integer, DescriptiveStatistics>[] redstats = new Map[] {
+        p_RedAutonRotor, p_Red4Rotors, p_Red40kpa, P_RedWin
+      };
+      
+      Map<Integer, DescriptiveStatistics>[] bluestats = new Map[] {
+        p_BlueAutonRotor, p_Blue4Rotors, p_Blue40kpa, P_BlueWin
+      };
+      
+      for(Match m : sp.mMatches) {
+        redscores.put(m.num, new DescriptiveStatistics());
+        p_RedAutonRotor.put(m.num, new DescriptiveStatistics());
+        p_Red4Rotors.put(m.num, new DescriptiveStatistics());
+        p_Red40kpa.put(m.num, new DescriptiveStatistics());
+        P_RedWin.put(m.num, new DescriptiveStatistics()); 
+  
+        bluescores.put(m.num, new DescriptiveStatistics());
+        p_BlueAutonRotor.put(m.num, new DescriptiveStatistics());
+        p_Blue4Rotors.put(m.num, new DescriptiveStatistics());
+        p_Blue40kpa.put(m.num, new DescriptiveStatistics());
+        P_BlueWin.put(m.num, new DescriptiveStatistics());
+      }
+      
+      for(int i = 0; i < 10000 ; i++) {
+        sp.calcScores();
+        for(Match m : sp.mMatches) {
+          double p_redwin = 0.5d;
+          if(m.red.mScore != m.blue.mScore) {
+            p_redwin = m.red.mScore > m.blue.mScore ? 1d : 0d;
+          }
+          redscores.get(m.num).addValue(m.red.mScore);
+          p_RedAutonRotor.get(m.num).addValue(m.red.mAuton2Gear ? 1d : 0d);
+          p_Red4Rotors.get(m.num).addValue(m.red.mRotorRP);
+          p_Red40kpa.get(m.num).addValue(m.red.mFuelRP);
+          P_RedWin.get(m.num).addValue(p_redwin);
+          
+          bluescores.get(m.num).addValue(m.blue.mScore);
+          p_BlueAutonRotor.get(m.num).addValue(m.blue.mAuton2Gear ? 1d : 0d);
+          p_Blue4Rotors.get(m.num).addValue(m.blue.mRotorRP);
+          p_Blue40kpa.get(m.num).addValue(m.blue.mFuelRP);
+          P_BlueWin.get(m.num).addValue(1 - p_redwin);
+        }
+      }
+      
+      // output
+      System.out.println("MATCH\t" +
+        "RED1\tRED2\tRED3\tSCORE\tA_ROTOR\t4ROTOR\t40KPA\tWIN" + "\t" +
+        "BLUE1\tBLUE2\tBLUE3\tSCORE\tA_ROTOR\t4ROTOR\t40KPA\tWIN");
+      for(Match m : sp.mMatches) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(m.num);
+        sb.append("\t");
+        String red = Utils.convertToTabbedString(m.red.teams.stream().map(t->t.num).collect(Collectors.toList()));
+        sb.append(red);
+        sb.append("\t");
+        sb.append(nf.format(redscores.get(m.num).getMean()));
+        sb.append("\t");
+        for(int i=0; i < redstats.length; i++) {
+          sb.append(pf.format(redstats[i].get(m.num).getMean()));
+          sb.append("\t");
+        }
+        String blue = Utils.convertToTabbedString(m.blue.teams.stream().map(t->t.num).collect(Collectors.toList()));
+        sb.append(blue);
+        sb.append("\t");
+        sb.append(nf.format(bluescores.get(m.num).getMean()));
+        sb.append("\t");
+        for(int i=0; i < bluestats.length; i++) {
+          sb.append(pf.format(bluestats[i].get(m.num).getMean()));
+          sb.append("\t");
+        }
+        System.out.println(sb);
+      }
+    }
   }
   
   public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule, boolean pRandomizedSchedule) {
@@ -67,6 +164,10 @@ public class SchedulePredictor {
         }
       }
     }
+  }
+  
+  public void calcScores() {
+    mMatches.parallelStream().forEach(m -> m.calcScore());
   }
   
   public SchedulePredictor(List<Integer> pTeams, Map<Integer, TeamStat> pStats, String[] pSchedule) {
@@ -147,6 +248,8 @@ public class SchedulePredictor {
     }
     
     public void calcScore() {
+      red.reset();
+      blue.reset();
       int r = (int)Math.round(red.calcScore());
       int b = (int)Math.round(blue.calcScore());
       if(r > b) {
@@ -233,6 +336,15 @@ public class SchedulePredictor {
       }
     }
     
+    public void reset() {
+      mScore = 0;
+      mRotorRP = 0;
+      mFuelRP = 0;
+      mAutonGear = false;
+      mAuton2Gear = false;
+      mFuelScore = 0;
+    }
+
     public double calcScore() {
       // Free Gear
       double value = 40d;
@@ -317,6 +429,7 @@ public class SchedulePredictor {
       }
       if(numGears >= 12d) {
         g += 40d;
+        mRotorRP = 1;
       } else if(numGears >= MIN_GEAR_4ROTOR_THRESHOLD) {
         double p_4r = (12d - numGears) / 6d;
         mRotorRP = Math.random() > p_4r ? 0 : 1;

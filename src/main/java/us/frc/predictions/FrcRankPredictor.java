@@ -29,14 +29,14 @@ public class FrcRankPredictor {
 
 
   // TODO - Config display
-  private static final double NUM_SCHEDULES_TO_PREDICT = 1000;
-  private static final boolean RANDOM_SCHEDULES = true;
+  private static final double NUM_SCHEDULES_TO_PREDICT = 10000;
+  private static final boolean RANDOM_SCHEDULES = false;
   
   public static void main(String... args) {
     
     for(String e : EventStats.STL) {
     
-      Map<Integer, TeamStat> allEventStats = Utils.getStatsForTeamsAttending(e, true, true);
+      Map<Integer, TeamStat> allEventStats = Utils.getStatsForTeamsAttending(e, true, RANDOM_SCHEDULES);
       System.out.println("Retrieved " + allEventStats.size() + " team stats for " + e);
   
       String[] schedule;
@@ -44,14 +44,16 @@ public class FrcRankPredictor {
         schedule = ScheduleGenerator.getScheduleForTeams(allEventStats.size(), 10);
         System.out.println("Finished retrieving randomized schedule with " + schedule.length + " matches for " + allEventStats.size() + " teams");
       } else {
-        schedule = Utils.getScheduleForEvent(e);
+        schedule = Utils.getQualScheduleForEvent(e);
         System.out.println("Finished retrieving schedule with " + schedule.length + " matches for " + e);
       }
       
       // Init the rank averages array that stores each sim's rank for a team
-      Map<Integer, List<Integer>> rankAverages = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> rpAverages = new HashMap<>();
+      Map<Integer, DescriptiveStatistics> rankAverages = new HashMap<>();
       for(Integer i : allEventStats.keySet()) {
-        rankAverages.put(i, new ArrayList<Integer>());
+        rpAverages.put(i, new DescriptiveStatistics());
+        rankAverages.put(i, new DescriptiveStatistics());
       }
       
       double allsimscores = 0;
@@ -74,6 +76,7 @@ public class FrcRankPredictor {
           Collections.shuffle(random);
         }
         SchedulePredictor sp = new SchedulePredictor(random, allEventStats, schedule, RANDOM_SCHEDULES);
+        sp.calcScores();
         // TODO - JavaFX Match display
         for(SchedulePredictor.Match m : sp.getMatches()) {
           allsimscores += m.getTotalScore();
@@ -111,9 +114,10 @@ public class FrcRankPredictor {
   //      System.out.println("Schedule " + i + " " + ranks);
         
         // Store the ranking prediction for each team for this simulation run
-        int rank = 1;
+        double rank = 1d;
         for(SchedulePredictor.Team t : ranks) {
-          rankAverages.get(t.num).add(rank);
+          rpAverages.get(t.num).addValue(t.rankpoints);
+          rankAverages.get(t.num).addValue(rank);
           rank++;
         };
       } // End simulation loop
@@ -121,15 +125,13 @@ public class FrcRankPredictor {
       System.out.println("Finalizing averages");
       List<RankStat> ranks = new ArrayList<>();
       
-      for(Integer team : rankAverages.keySet()) {
-        List<Integer> rs = rankAverages.get(team);
+      for(Integer team : rpAverages.keySet()) {
+        DescriptiveStatistics ds = rankAverages.get(team);
         RankStat stat = new RankStat();
         
         stat.mTeam = team;
-        stat.mRankAvg = (double)rs.stream().reduce(Integer::sum).get() / NUM_SCHEDULES_TO_PREDICT;
-        
-        DescriptiveStatistics ds = new DescriptiveStatistics();
-        rs.forEach(i -> ds.addValue(Double.valueOf(Integer.toString(i))));
+        stat.mRankAvg = ds.getMean();
+        stat.mAvgRP = rpAverages.get(team).getMean();
         
         // Problem with 3-sigmas in 2017 - basically it says
         // "I have 99.7% confidence that all teams will rank from 1 to 58 at a 58-team event"
@@ -146,9 +148,9 @@ public class FrcRankPredictor {
         ranks.add(stat);
       }
       
-      System.out.println("RANK\tTEAM\t100K-AVG\t80%-LO\t80%-HI");
+      System.out.println("RANK\tTEAM\tAvgRP\t100K-AVG\t80%-LO\t80%-HI");
       ranks = ranks.stream()
-        .sorted((a, b) -> Double.compare(a.mRankAvg, b.mRankAvg))
+        .sorted((a, b) -> Double.compare(a.mAvgRP, b.mAvgRP) * -1)
         .collect(Collectors.toList());
       for(int i = 0; i < ranks.size(); i++) {
         System.out.println((i+1) + "\t" + ranks.get(i));
@@ -175,14 +177,15 @@ public class FrcRankPredictor {
   
   private static class RankStat {
     private int mTeam;
+    private double mAvgRP;
     private double mRankAvg;
     private double mRankHigh;
     private double mRankLow;
     
     public String toString() {
-      return mTeam  + "\t" + nf.format(mRankAvg) + "\t" + nf.format(mRankLow)  + "\t" + nf.format(mRankHigh);
+      return mTeam  + "\t" + nf.format(mAvgRP) + "\t" + nf.format(mRankAvg) + "\t" + nf.format(mRankLow)  + "\t" + nf.format(mRankHigh) ;
     }
   }
 
-  private static final DecimalFormat nf = new DecimalFormat("0.0");
+  static final DecimalFormat nf = new DecimalFormat("0.0");
 }
