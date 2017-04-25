@@ -24,7 +24,7 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 public class SchedulePredictor {
   private final Map<Integer, Team> mTeams = new HashMap<>();
   private final List<Match> mMatches = new ArrayList<>();
-  public static final double GEAR_STD_DEV = 1.2d;
+  public static final double GEAR_STD_DEV = 1.0d;
   public static final double FUEL_STD_DEV = 10d;
   public static final double MIN_GEAR_4ROTOR_THRESHOLD = 9d;
 
@@ -343,6 +343,10 @@ public class SchedulePredictor {
       mAutonGear = false;
       mAuton2Gear = false;
       mFuelScore = 0;
+      for(Team t : teams) {
+        t.matchpoints = 0d;
+        t.rankpoints = 0d;
+      }
     }
 
     public double calcScore() {
@@ -414,7 +418,7 @@ public class SchedulePredictor {
       double numGears = teams.stream()
         .map(team -> team.stats.getNumGears())
         // Randomly add +/- 1 standard deviation of gears for each team
-        .map(gears -> gears + GEAR_STD_DEV * Math.random() * (Math.random() > 0.5d ? 1d : 1d))
+        .map(gears -> gears + GEAR_STD_DEV * Math.random() * (Math.random() > 0.5d ? 1d : -1d))
         .map(sum -> Math.max(0d, sum))
         .reduce(Double::sum)
         .get();

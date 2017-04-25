@@ -172,7 +172,7 @@ public class FrcRankPredictor {
   private static void outputPct(String message, double totalValue, int schedulelength) {
     double avgpct = totalValue/NUM_SCHEDULES_TO_PREDICT;
     System.out.println(message + 
-      nf.format(avgpct) + " (" + nf.format(avgpct/(double)schedulelength*100d) + "%)");
+      nf.format(avgpct) + " (" + nf.format(avgpct/(double)schedulelength/2*100d) + "%)");
   }
   
   private static class RankStat {
