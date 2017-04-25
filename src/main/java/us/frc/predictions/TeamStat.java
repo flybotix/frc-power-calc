@@ -39,8 +39,13 @@ public class TeamStat {
   public TeamStat (Integer pTeam, TBACalc pCalc, Double pOpr, Double pDpr) {
     mTeam = pTeam;
     for(Breakdown2017 stat : CalculatedValues) {
-      mStats.put(stat, pCalc.getForKey(stat.name()).get(pTeam)/stat.getStaticValue());
-      mAntiStats.put(stat, pCalc.getForKey(stat.name(), true).get(pTeam)/stat.getStaticValue());
+      if(stat == autoFuelPoints || stat == teleopFuelPoints) {
+        mStats.put(stat, pCalc.getForKey(stat.name()).get(pTeam));
+        mAntiStats.put(stat, pCalc.getForKey(stat.name(), true).get(pTeam));
+      } else {
+        mStats.put(stat, pCalc.getForKey(stat.name()).get(pTeam)/stat.getStaticValue());
+        mAntiStats.put(stat, pCalc.getForKey(stat.name(), true).get(pTeam)/stat.getStaticValue());
+      }
     }
     String loc = TBACalc.api.getTeam(mTeam).getLocation();
     int firstComma = loc.indexOf(",");

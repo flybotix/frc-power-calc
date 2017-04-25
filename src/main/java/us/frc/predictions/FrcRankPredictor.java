@@ -29,7 +29,7 @@ public class FrcRankPredictor {
 
 
   // TODO - Config display
-  private static final double NUM_SCHEDULES_TO_PREDICT = 10000;
+  private static final double NUM_SCHEDULES_TO_PREDICT = 100000;
   private static final boolean RANDOM_SCHEDULES = false;
   
   public static void main(String... args) {

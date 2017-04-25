@@ -25,7 +25,7 @@ public class SchedulePredictor {
   private final Map<Integer, Team> mTeams = new HashMap<>();
   private final List<Match> mMatches = new ArrayList<>();
   public static final double GEAR_STD_DEV = 1.0d;
-  public static final double FUEL_STD_DEV = 10d;
+  public static final double FUEL_STD_DEV_PCT = 0.25d;
   public static final double MIN_GEAR_4ROTOR_THRESHOLD = 9d;
 
   static final DecimalFormat nf = new DecimalFormat("0");
@@ -72,7 +72,7 @@ public class SchedulePredictor {
         P_BlueWin.put(m.num, new DescriptiveStatistics());
       }
       
-      for(int i = 0; i < 10000 ; i++) {
+      for(int i = 0; i < 25000 ; i++) {
         sp.calcScores();
         for(Match m : sp.mMatches) {
           double p_redwin = 0.5d;
@@ -411,7 +411,8 @@ public class SchedulePredictor {
         if(fuel < 1d) {
           mFuelScore = Math.random() > fuel ? 1 : 0;
         } else {
-          mFuelScore = (int)Math.floor(fuel);
+          double stddev = FUEL_STD_DEV_PCT * fuel;
+          mFuelScore = (int)Math.floor(fuel + stddev * Math.random() * (Math.random() > 0.5d ? 1d : -1d));
         }
       }
       
