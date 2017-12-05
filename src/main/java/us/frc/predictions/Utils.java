@@ -177,7 +177,12 @@ public class Utils {
   private static final String[] sINVALID_EVENTS = new String[]{
     "2017cmptx", // Houston final field
     "2017micmp", // MSC final field
-    "2017ctss" // Week 0 scrimmage
+    "2017ctss", // Week 0 scrimmage
+    "2017nhfcc",
+    "2017nhfoc",
+    "2017cmpmo",
+    "2017wiwi",
+    "2017njmm"
   };
   
   public static Map<Integer, TeamStat> retrieveStatsForEvent(String pEvent) {

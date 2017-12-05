@@ -25,7 +25,7 @@ public class FrcRankPredictor {
 //  private static final String EVENT_TO_PREDICT = "2017incmp";
 //  private static final String EVENT_TO_PREDICT = "2017micmp";
 //  private static final String EVENT_TO_PREDICT = "2017oncmp";
-  private static final String EVENT_TO_PREDICT = "2017dar";
+  private static final String EVENT_TO_PREDICT = "2017iri";
 
 
   // TODO - Config display

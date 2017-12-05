@@ -12,6 +12,7 @@ import org.apache.commons.math3.linear.RealMatrix;
 import com.vegetarianbaconite.blueapi.SynchronousBlueAPI;
 import com.vegetarianbaconite.blueapi.beans.Alliance;
 import com.vegetarianbaconite.blueapi.beans.Match;
+import com.vegetarianbaconite.blueapi.beans.Stats;
 
 public class TBACalc {
   private String eventKey;
@@ -27,6 +28,16 @@ public class TBACalc {
   private CholeskyDecomposition cholesky;
   public boolean isValid;
   public final String mEvent;
+  
+  public class Insight {
+    double numMatches = 0;
+    double num4thRotors = 0d;
+    double num3rdRotors = 0d;
+    double num2ndRotors = 0d;
+    double numAuton1Rotors = 0d;
+    double numAuton2Rotors = 0d;
+    double num40kpa = 0d;
+  }
 
   public TBACalc(String eventKey, Boolean qualsOnly) {
     mEvent = eventKey;
@@ -37,13 +48,17 @@ public class TBACalc {
     }
     try {
       for (Match m : eventMatches) {
-        for (String t : m.getAlliances().getRed().getTeams())
-          if (!teams.contains(Integer.parseInt(t.substring(3))))
+        for (String t : m.getAlliances().getRed().getTeams()) {
+          if (!teams.contains(Integer.parseInt(t.substring(3)))) {
             teams.add(Integer.parseInt(t.substring(3)));
+          }
+        }
   
-        for (String t : m.getAlliances().getBlue().getTeams())
-          if (!teams.contains(Integer.parseInt(t.substring(3))))
+        for (String t : m.getAlliances().getBlue().getTeams()) {
+          if (!teams.contains(Integer.parseInt(t.substring(3)))) {
             teams.add(Integer.parseInt(t.substring(3)));
+          }
+        }
       }
   
       int i = 0;
@@ -78,7 +93,6 @@ public class TBACalc {
 //    System.exit(0);
   }
 
-  // TODO - Cleanup the brackets so it's easier to read
   public Map<Integer, Double> getForKey(String key, boolean anti) {
     synchronized (this) {
       cleanup();

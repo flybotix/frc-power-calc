@@ -23,15 +23,17 @@ public class EventStats {
   };
   
   public static void main(String[] pArgs) {
+    Utils.getLiveStatsForTeamsAttending(true, "2017iri");
+//    Utils.getStatsForTeamsAttending("2017iri", true, true);
 //    
-    Utils.getStatsForTeamsAttendingMulti(true, true, STL);
+//    Utils.getStatsForTeamsAttendingMulti(true, true, "2017dar");
     
-//    Utils.getStatsForSpecificEvents(true, true, STL);
+//    Utils.getStatsForSpecificEvents(true, true, "2017iri");
     
 //    Utils.getEventsForTeams(Utils.getTeamsForEvent("2017dar"), "2017dar");
 //    System.out.println(Utils.getAllEventsForSingleTeam(1885));
     
-//    System.out.println(Arrays.toString(Utils.getQualScheduleForEvent("2017dar")));
+//    System.out.println(Arrays.toString(Utils.getQualScheduleForEvent("2017iri")));
   }
 
   
